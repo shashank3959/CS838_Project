@@ -8,5 +8,5 @@ Project Topic: Not decided Yet
 
 ### Key Contributors
   - [Deepan Das](mailto:ddas27@wisc.edu)
-  - [Noor Mohamed Ghouse](mailto:mohamedghous@wisc.edu)]
+  - [Noor Mohamed Ghouse](mailto:mohamedghous@wisc.edu)
   - [Shashank Verma](mailto:sverma28@wisc.edu)

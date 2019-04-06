@@ -1,10 +1,6 @@
 import pickle
 import numpy as np
-import os
-
-# Make sure these files are present at the expected location
-vocab_file = 'vocab.pkl'
-embed_file = '../data/glove.6B.300d.txt'
+import json
 
 
 def random_glove_generator(emb_mean, emb_stddev):
@@ -18,9 +14,7 @@ def vocab_glove_list(vocab_file, embed_file):
     f = open(vocab_file, "rb")
     vocab = pickle.load(f)
     word2idx = vocab.word2idx
-    # idx2word = vocab.idx2word
     print("Vocabulary successfully loaded from vocab.pkl file!")
-
     all_words_vocab = list(word2idx.keys())
 
     glove = {}
@@ -31,11 +25,10 @@ def vocab_glove_list(vocab_file, embed_file):
         glove[word] = emb
 
     print("Glove Dictionary successfully built!")
-
     return all_words_vocab, glove
 
 
-def create_glove_pickle(vocab_file, embed_file):
+def create_glove_for_vocab(vocab_file, embed_file):
     vocab_list, glove_dict = vocab_glove_list(vocab_file, embed_file)
 
     all_embeddings = np.stack(glove_dict.values())
@@ -45,17 +38,22 @@ def create_glove_pickle(vocab_file, embed_file):
     vocab2glove = {}
     for word in vocab_list:
         if word not in glove_dict.keys():
-            vocab2glove[word] = random_glove_generator(emb_mean, emb_stddev)
+            vocab2glove[word] = random_glove_generator(emb_mean, emb_stddev).tolist()
         else:
-            vocab2glove[word] = glove_dict[word]
+            vocab2glove[word] = glove_dict[word].tolist()
     return vocab2glove
 
 
 if __name__ == "__main__":
-    vocab_embedding = create_glove_pickle(vocab_file, embed_file)
-    file_name = 'vocab_glove.pkl'
-    print('generating pickle file!')
-    with open(file_name, "wb") as f:
-        pickle.dump(vocab_embedding, f)
-    print('Generated pickle file!')
+    # Make sure these files are present at the expected location
+    vocab_file = 'vocab.pkl'
+    embed_file = '../data/glove.6B.300d.txt'
+    vocab_glove_file = '../data/vocab_glove.json'
+
+    vocab_embedding = create_glove_for_vocab(vocab_file, embed_file)
+
+    print('Generating JSON file!')
+    with open(vocab_glove_file,  "w") as fp:
+        json.dump(vocab_embedding, fp)
+    print('Generated JSON file!')
 

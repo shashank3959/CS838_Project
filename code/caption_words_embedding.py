@@ -2,8 +2,9 @@ import pickle
 import numpy as np
 import os
 
+# Make sure these files are present at the expected location
 vocab_file = 'vocab.pkl'
-embed_file = 'glove.6B.300d.txt'
+embed_file = '../data/glove.6B.300d.txt'
 
 
 def random_glove_generator(emb_mean, emb_stddev):

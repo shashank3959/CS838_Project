@@ -21,7 +21,8 @@ def get_loader(transform,
                unk_word="<unk>",
                vocab_from_file=True,
                num_workers=0,
-               cocoapi_loc="."):
+               cocoapi_loc=".",
+               vocab_glove_file="../data/vocab_glove.json"):
     """Return the data loader.
     Parameters:
         transform: Image transform.
@@ -38,6 +39,8 @@ def get_loader(transform,
         num_workers: Number of subprocesses to use for data loading 
         cocoapi_loc: The location of the folder containing the COCO API: 
                      https://github.com/cocodataset/cocoapi
+        vocab_glove_file: This JSON file contains the Glove embeddings for each
+                    word in the vocabulary.
     """
     
     assert mode in ["train", "val", "test"], "mode must be one of 'train', 'val' or 'test'."
@@ -75,7 +78,8 @@ def get_loader(transform,
                           unk_word=unk_word,
                           annotations_file=annotations_file,
                           vocab_from_file=vocab_from_file,
-                          img_folder=img_folder)
+                          img_folder=img_folder,
+                          vocab_glove_file=vocab_glove_file)
 
     if mode == "train":
         # Randomly sample a caption length, and sample indices with that length.
@@ -99,7 +103,7 @@ def get_loader(transform,
 class CoCoDataset(data.Dataset):
     
     def __init__(self, transform, mode, batch_size, vocab_threshold, vocab_file, start_word, 
-        end_word, unk_word, annotations_file, vocab_from_file, img_folder):
+        end_word, unk_word, annotations_file, vocab_from_file, img_folder, vocab_glove_file):
         self.transform = transform
         self.mode = mode
         self.batch_size = batch_size
@@ -118,7 +122,8 @@ class CoCoDataset(data.Dataset):
         else:
             test_info = json.loads(open(annotations_file).read())
             self.paths = [item["file_name"] for item in test_info["images"]]
-        
+        self.vocab_glove = json.load(open(vocab_glove_file, "r"))
+
     def __getitem__(self, index):
         # Obtain image and caption if in training or validation mode
         if self.mode == "train" or self.mode == "val":
@@ -133,14 +138,17 @@ class CoCoDataset(data.Dataset):
 
             # Convert caption to tensor of word ids.
             tokens = nltk.tokenize.word_tokenize(str(caption).lower())
-            caption = []
-            caption.append(self.vocab(self.vocab.start_word))
-            caption.extend([self.vocab(token) for token in tokens])
-            caption.append(self.vocab(self.vocab.end_word))
-            caption = torch.Tensor(caption).long()
+            caption = list()
+            caption.append(self.vocab.start_word)
+            caption.extend(tokens)
+            caption.append(self.vocab.end_word)
+
+            # For each word in caption, return its glove-representation
+            caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
+                                          self.vocab_glove["<unk>"] for word in caption])
 
             # Return pre-processed image and caption tensors
-            return image, caption
+            return image, caption_gloves
 
         # Obtain image if in test mode
         else:

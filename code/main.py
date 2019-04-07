@@ -7,9 +7,8 @@ import numpy as np
 import torch.utils.data as data
 import torch
 import models
-from ImageModels import VGG19
-from lstm_model import LSTMBranch
 from models_train import train
+from models import VGG19, LSTMBranch
 import math
 
 

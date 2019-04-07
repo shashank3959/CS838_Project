@@ -52,7 +52,7 @@ def main(args):
         os.getpid(), os.uname()[1], time.asctime()))
 
     transform = transforms.Compose([
-        transforms.Resize((224, 224)),  # smaller edge of image resized to 224
+        transforms.Resize((224, 224)),  
         transforms.ToTensor(),  # convert the PIL Image to a tensor
         transforms.Normalize((0.485, 0.456, 0.406),  # normalize image for pre-trained model
                              (0.229, 0.224, 0.225))])

@@ -16,14 +16,14 @@ class LSTMBranch(nn.Module):
 
         self.lstm = nn.LSTM(ip_size, op_size)
 
-    def forward(self, ip_matrix):
+    def forward(self, ip_matrix, use_gpu=False):
         ip_matrix = ip_matrix.permute(1, 0, 2)
         ip_matrix.requires_grad= False
         h_0 = Variable(torch.zeros(1, self.batch_size, self.op_size))
         c_0 = Variable(torch.zeros(1, self.batch_size, self.op_size))
 
         # Move to GPU if CUDA is available
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and use_gpu==True:
             h_0 = h_0.cuda()
             c_0 = c_0.cuda()
 

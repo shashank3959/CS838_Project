@@ -23,7 +23,7 @@ parser.add_argument("--resume", action="store_true", dest="resume",
                     help="load from exp_dir if True")
 parser.add_argument("--optim", type=str, default="sgd",
                     help="training optimizer", choices=["sgd", "adam"])
-parser.add_argument('-b', '--batch-size', default=4, type=int,
+parser.add_argument('-b', '--batch-size', default=2, type=int,
                     metavar='N', help='mini-batch size (default: 100)')
 parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
                     metavar='LR', help='initial learning rate')
@@ -43,6 +43,7 @@ parser.add_argument("--pretrained-image-model", action="store_true",
                     dest="pretrained_image_model", help="Use an image network pretrained on ImageNet")
 parser.add_argument("--margin", type=float, default=1.0, help="Margin parameter for triplet loss")
 parser.add_argument("--crop_size", type=int, default=224 , help="size for randomly cropping images")
+parser.add_argument("--use_gpu", type=bool, default=False, help="Use GPU to accelerate training")
 
 
 # resume from a checkpoint? - add code here
@@ -70,7 +71,7 @@ def main(args):
     caption_model = LSTMBranch(args.batch_size)
 
     # Move to GPU if CUDA is available
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and args.use_gpu==True:
         image_model = image_model.cuda()
         caption_model = caption_model.cuda()
 
@@ -79,7 +80,7 @@ def main(args):
 
     for epoch in range(1, args.n_epochs + 1):
         print("Epoch:", epoch)
-        train_loss = train(data_loader_train, image_model, caption_model, epoch, total_train_step, args.batch_size)
+        train_loss = train(data_loader_train, image_model, caption_model, epoch, total_train_step, args.batch_size, args.use_gpu)
         print("Epoch:", epoch, "Training Loss:", train_loss)
 
 

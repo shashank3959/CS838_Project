@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 
 
@@ -31,20 +30,3 @@ def compute_similarity_score(matchmap, score_type):
         return max_text.mean()
     else:
         raise ValueError
-
-
-# # Helper code to check functioning of matchmap_generate()
-#
-# image = torch.randn(256, 14, 14)
-# text = torch.randn(10, 256)
-#
-# matchmap = matchmap_generate(image, text)
-#
-# print("1. Image shape: ", image.shape)
-# print("2. Text shape: ", text.shape)
-# print("3. Matchmap shape: ", matchmap.shape)
-# s = compute_similarity_score(matchmap, 'Max_Text')
-#
-# print("4. Similarity Score: ",s)
-
-

@@ -6,6 +6,11 @@ from data_loader import get_loader
 import numpy as np
 import torch.utils.data as data
 import torch
+import models
+from ImageModels import VGG19
+from lstm_model import LSTMBranch
+from models_train import train
+import math
 
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -19,7 +24,7 @@ parser.add_argument("--resume", action="store_true", dest="resume",
                     help="load from exp_dir if True")
 parser.add_argument("--optim", type=str, default="sgd",
                     help="training optimizer", choices=["sgd", "adam"])
-parser.add_argument('-b', '--batch-size', default=128, type=int,
+parser.add_argument('-b', '--batch-size', default=8, type=int,
                     metavar='N', help='mini-batch size (default: 100)')
 parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
                     metavar='LR', help='initial learning rate')
@@ -29,7 +34,7 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight-decay', '--wd', default=5e-7, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
-parser.add_argument("--n_epochs", type=int, default=100,
+parser.add_argument("--n_epochs", type=int, default=1,
                     help="number of maximum training epochs")
 parser.add_argument("--n_print_steps", type=int, default=100,
                     help="number of steps to print statistics")
@@ -54,20 +59,28 @@ def main(args):
                              (0.229, 0.224, 0.225))])
 
     # Obtain the data loader (from file). Note that it runs much faster than before!
-    data_loader = get_loader(transform=transform,
+    data_loader_train = get_loader(transform=transform,
                              mode='train',
-                             batch_size=10,
+                             batch_size=args.batch_size,
                              vocab_from_file=True)
 
-    # Obtain the batch.
-    for batch in data_loader:
-        images, caption_gloves = batch[0], batch[1]
-        break
+    # VGG-19 based model for Images
+    image_model = VGG19(pretrained=args.pretrained_image_model).cpu()
 
-    # Print the pre-processed images and captions.
-    print('images.shape:', images.shape)
-    # print('images:', images)
-    print("Caption gloves shape:", caption_gloves.shape)
+    # LSTM model for caption glove embeddings
+    caption_model = LSTMBranch(args.batch_size).cpu()
+
+    total_train_step = math.ceil(len(data_loader_train.dataset.caption_lengths) / data_loader_train.batch_sampler.batch_size)
+    print("Total number of training steps are :", total_train_step)
+
+    for epoch in range(1, args.n_epochs + 1):
+        print("Epoch:", epoch)
+        train_loss = train(data_loader_train, image_model, caption_model, epoch, total_train_step, args.batch_size)
+        print("Epoch:", epoch, "Training Loss:", train_loss)
+
+
+    print("Back to main")
+
 
 
 if __name__ == "__main__":

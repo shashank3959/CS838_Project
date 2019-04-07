@@ -16,8 +16,8 @@ class LSTMBranch(nn.Module):
     def forward(self, ip_matrix):
         ip_matrix = ip_matrix.permute(1, 0, 2)
         ip_matrix.requires_grad= False
-        h_0 = Variable(torch.zeros(1, self.batch_size, self.op_size))
-        c_0 = Variable(torch.zeros(1, self.batch_size, self.op_size))
+        h_0 = Variable(torch.zeros(1, self.batch_size, self.op_size)).cpu()
+        c_0 = Variable(torch.zeros(1, self.batch_size, self.op_size)).cpu()
 
         op, _ = self.lstm(ip_matrix, (h_0, c_0))
         op = op.permute(1, 0, 2)

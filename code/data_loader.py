@@ -20,7 +20,7 @@ def get_loader(transform,
                end_word="<end>",
                unk_word="<unk>",
                vocab_from_file=True,
-               num_workers=0,
+               num_workers=4,
                cocoapi_loc=".",
                vocab_glove_file="../data/vocab_glove.json"):
     """Return the data loader.

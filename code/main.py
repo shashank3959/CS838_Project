@@ -23,7 +23,7 @@ parser.add_argument("--resume", action="store_true", dest="resume",
                     help="load from exp_dir if True")
 parser.add_argument("--optim", type=str, default="sgd",
                     help="training optimizer", choices=["sgd", "adam"])
-parser.add_argument('-b', '--batch-size', default=8, type=int,
+parser.add_argument('-b', '--batch-size', default=4, type=int,
                     metavar='N', help='mini-batch size (default: 100)')
 parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
                     metavar='LR', help='initial learning rate')
@@ -64,10 +64,15 @@ def main(args):
                              vocab_from_file=True)
 
     # VGG-19 based model for Images
-    image_model = VGG19(pretrained=args.pretrained_image_model).cpu()
+    image_model = VGG19(pretrained=args.pretrained_image_model)
 
     # LSTM model for caption glove embeddings
-    caption_model = LSTMBranch(args.batch_size).cpu()
+    caption_model = LSTMBranch(args.batch_size)
+
+    # Move to GPU if CUDA is available
+    if torch.cuda.is_available():
+        image_model = image_model.cuda()
+        caption_model = caption_model.cuda()
 
     total_train_step = math.ceil(len(data_loader_train.dataset.caption_lengths) / data_loader_train.batch_sampler.batch_size)
     print("Total number of training steps are :", total_train_step)

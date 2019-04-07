@@ -2,7 +2,11 @@ import argparse
 import os
 import time
 from torchvision import transforms
-from dataloader import get_loader
+from data_loader import get_loader
+import numpy as np
+import torch.utils.data as data
+import torch
+
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--data-train", type=str, default='',
@@ -15,7 +19,7 @@ parser.add_argument("--resume", action="store_true", dest="resume",
                     help="load from exp_dir if True")
 parser.add_argument("--optim", type=str, default="sgd",
                     help="training optimizer", choices=["sgd", "adam"])
-parser.add_argument('-b', '--batch-size', default=100, type=int,
+parser.add_argument('-b', '--batch-size', default=128, type=int,
                     metavar='N', help='mini-batch size (default: 100)')
 parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
                     metavar='LR', help='initial learning rate')
@@ -43,18 +47,27 @@ def main(args):
     print("Process %s, running on %s: starting (%s)" % (
         os.getpid(), os.uname()[1], time.asctime()))
 
-    # data augmentation: normalization for the pretrained resnet
     transform = transforms.Compose([
-        transforms.RandomCrop(args.crop_size),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.485, 0.456, 0.406),
+        transforms.Resize((224, 224)),  # smaller edge of image resized to 224
+        transforms.ToTensor(),  # convert the PIL Image to a tensor
+        transforms.Normalize((0.485, 0.456, 0.406),  # normalize image for pre-trained model
                              (0.229, 0.224, 0.225))])
 
-    # Build data loader
-    data_loader = get_loader(args.image_dir, args.caption_path, vocab,
-                             transform, args.batch_size,
-                             shuffle=True, num_workers=args.num_workers)
+    # Obtain the data loader (from file). Note that it runs much faster than before!
+    data_loader = get_loader(transform=transform,
+                             mode='train',
+                             batch_size=10,
+                             vocab_from_file=True)
+
+    # Obtain the batch.
+    for batch in data_loader:
+        images, caption_gloves = batch[0], batch[1]
+        break
+
+    # Print the pre-processed images and captions.
+    print('images.shape:', images.shape)
+    # print('images:', images)
+    print("Caption gloves shape:", caption_gloves.shape)
 
 
 if __name__ == "__main__":

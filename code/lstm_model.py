@@ -4,7 +4,7 @@ from torch.autograd import  Variable
 
 
 class LSTMBranch(nn.Module):
-    def __init__(self, batch_size, ip_size, op_size):
+    def __init__(self, batch_size, ip_size=300, op_size=256):
         super(LSTMBranch, self).__init__()
 
         self.batch_size = batch_size

@@ -84,3 +84,14 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+
+def adjust_learning_rate(optimizer, epoch):
+    # Sets the learning rate to the initial LR decayed by 10 every 10 epochs
+    lr = 1
+    adjustment_factor = int(np.floor(epoch / 10.0))
+    for i in range(adjustment_factor):
+        lr *= .1
+
+    for param_group in optimizer.param_groups:
+        param_group['lr'] *= lr

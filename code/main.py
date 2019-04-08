@@ -10,6 +10,7 @@ import models
 from models_train import train
 from models import VGG19, LSTMBranch
 import math
+from utils import adjust_learning_rate
 
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -50,7 +51,7 @@ parser.add_argument("--use_gpu", type=bool, default=False, help="Use GPU to acce
 def main(args):
     # Parsing command line arguments
     print("Process %s, running on %s: starting (%s)" % (
-        os.getpid(), os.uname()[1], time.asctime()))
+        os.getpid(), os.name, time.asctime()))
 
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -63,6 +64,14 @@ def main(args):
                              mode='train',
                              batch_size=args.batch_size,
                              vocab_from_file=True)
+
+    data_loader_val = get_loader(transform=transform,
+                                 mode='val',
+                                 batch_size=args.batch_size,
+                                 vocab_from_file=True)
+
+
+
 
     # VGG-19 based model for Images
     image_model = VGG19(pretrained=args.pretrained_image_model)
@@ -86,6 +95,7 @@ def main(args):
     print("Total number of training steps are :", total_train_step)
 
     for epoch in range(1, args.n_epochs + 1):
+        adjust_learning_rate(optimizer, epoch)
         print("Epoch: %d starting" % (epoch))
         train_loss = train(data_loader_train, image_model, caption_model, optimizer, epoch, total_train_step, args.batch_size, args.use_gpu)
         print("Epoch: %d, Training Loss: %0.4f" % (epoch, train_loss))

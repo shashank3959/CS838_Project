@@ -13,6 +13,7 @@ from models_train import validate
 from models import VGG19, LSTMBranch
 import math
 from utils import adjust_learning_rate
+from tensorboardX import SummaryWriter
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--data-train", type=str, default='',
@@ -21,8 +22,6 @@ parser.add_argument("--data-val", type=str, default='',
                     help="validation data json")
 parser.add_argument("--exp-dir", type=str, default="",
                     help="directory to dump experiments")
-# parser.add_argument("--resume", action="store_true", dest="resume",
-#                    help="load from exp_dir if True")
 parser.add_argument("--optim", type=str, default="sgd",
                     help="training optimizer", choices=["sgd", "adam"])
 parser.add_argument('-b', '--batch-size', default=64, type=int,
@@ -56,18 +55,14 @@ parser.add_argument('--no_gain_stop', type=int, default=10, metavar='N',
                     help='number of epochs used to perform early stopping based on validation performance (default: 10)')
 
 
-# resume from a checkpoint? - add code here
 def main(args):
     # Parsing command line arguments
     print("Process %s, running on %s: starting (%s)" % (
         os.getpid(), os.name, time.asctime()))
 
-    # VGG-19 based model for Images
     image_model = VGG19(pretrained=args.pretrained_image_model)
-
-    # LSTM model for caption glove embeddings
     caption_model = LSTMBranch(args.batch_size)
-    # Move to GPU if CUDA is available
+
     if torch.cuda.is_available() and args.use_gpu == True:
         print("Loading models onto GPU to accelerate training")
         image_model = image_model.cuda()
@@ -77,8 +72,8 @@ def main(args):
 
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
-        transforms.ToTensor(),  # convert the PIL Image to a tensor
-        transforms.Normalize((0.485, 0.456, 0.406),  # normalize image for pre-trained model
+        transforms.ToTensor(),
+        transforms.Normalize((0.485, 0.456, 0.406),
                              (0.229, 0.224, 0.225))])
 
     # Obtain the data loader (from file). Note that it runs much faster than before!
@@ -98,9 +93,7 @@ def main(args):
     image_trainables = [p for p in image_model.parameters() if p.requires_grad]
     caption_trainables = [p for p in caption_model.parameters() if p.requires_grad]
     params = image_trainables + caption_trainables
-    # params = list(image_model.parameters()) + list(caption_model.parameters())
 
-    # Define the optimizer
     # optimizer = torch.optim.Adam(params=params, lr=0.01)
     optimizer = torch.optim.SGD(params=params, lr=0.01, momentum=0.9)
 
@@ -121,7 +114,7 @@ def main(args):
                            total_train_step, args.batch_size, args.use_gpu)
         print('---------------------------------------------------------')
         print("Epoch: %d Validation starting" % (epoch))
-        val_loss = validate(caption_model, image_model, data_loader_val, args.use_gpu)
+        val_loss = validate(caption_model, image_model, data_loader_val, epoch, args.use_gpu)
         print("Epoch: ", epoch)
         print("Training Loss: ", float(train_loss.data))
         print("Validation Loss: ", float(val_loss.data))

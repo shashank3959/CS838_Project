@@ -1,13 +1,16 @@
 import time
 import torch.utils.data as data
-from utils import matchmap_generate, compute_similarity_score, custom_loss
+from utils import matchmap_generate, compute_similarity_score, custom_loss, AverageMeter
 import torch
+
+from tensorboardX import SummaryWriter
+
+writer = SummaryWriter('../logs')
 
 
 def train(data_loader_train, data_loader_val, image_model, caption_model, optimizer, epoch, total_train_step,
           batch_size, use_gpu=False, start_step=1, start_loss=0.0):
-    """Train model for exactly one epoch using the parameters given"""
-
+    losses = AverageMeter()
     total_loss = start_loss
 
     start_time = time.time()
@@ -15,7 +18,7 @@ def train(data_loader_train, data_loader_val, image_model, caption_model, optimi
     loss_scores = list()
 
     # for i_step in range(start_step, total_train_step + 1):
-    for i_step in range(1, 5):
+    for i_step in range(1, 100):
         image_model.train()
         caption_model.train()
 
@@ -49,22 +52,23 @@ def train(data_loader_train, data_loader_val, image_model, caption_model, optimi
 
         optimizer.zero_grad()
         total_loss += loss
-
-        # Do the backward pass
         loss.backward()
         optimizer.step()
 
-        # Aggregate loss statistics
+        losses.update(loss.data[0], image_ip.size(0))
+        niter = epoch + i_step
+        writer.add_scalar('data/training_loss', losses.val, niter)
+
         print("Step: %d, current loss: %0.4f, avg_loss: %0.4f" % (i_step, loss, total_loss / i_step))
 
     time_taken = time.time() - start_time
     # print("Time taken for this epoch:", time_taken)
 
-    # Return the average loss over that epoch
     return total_loss / i_step
 
 
-def validate(caption_model, image_model, data_loader_val, use_gpu):
+def validate(caption_model, image_model, data_loader_val, epoch, use_gpu):
+    val_losses = AverageMeter()
     total_loss_val = 0.0
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -76,7 +80,7 @@ def validate(caption_model, image_model, data_loader_val, use_gpu):
 
     print('---------------------------------------------------------')
 
-    for i_step_val in range(1, 2):
+    for i_step_val in range(1, 10):
         indices = data_loader_val.dataset.get_indices()
         new_sampler = data.sampler.SubsetRandomSampler(indices=indices)
         data_loader_val.batch_sampler.sampler = new_sampler
@@ -88,9 +92,6 @@ def validate(caption_model, image_model, data_loader_val, use_gpu):
         image_ip_val = image_ip_val.to(device)
         caption_glove_ip_val = caption_glove_ip_val.to(device)
 
-        # I_embeddings = []
-        # C_embeddings = []
-
         loss_scores = list()
 
         with torch.no_grad():
@@ -100,30 +101,12 @@ def validate(caption_model, image_model, data_loader_val, use_gpu):
             loss = custom_loss(image_output_val, caption_output_val)
             loss_scores.append(loss)
             total_loss_val += loss
-            # print ("Shape of current Validation Batch",caption_glove_ip_val.shape)
 
-            # print ("Validation Loss: ",float(loss.data))
         print("Step: %d, current loss: %0.4f, avg_loss: %0.4f" % (i_step_val, loss, total_loss_val / i_step_val))
+
+        val_losses.update(loss.data[0], image_ip_val.size(0))
+        niter = epoch + i_step_val
+        writer.add_scalar('data/validation_loss', val_losses.val, niter)
 
     print('---------------------------------------------------------')
     return total_loss_val / i_step_val
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

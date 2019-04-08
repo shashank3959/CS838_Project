@@ -58,43 +58,72 @@ def train(data_loader_train, data_loader_val, image_model, caption_model, optimi
         print("Step: %d, current loss: %0.4f, avg_loss: %0.4f" % (i_step, loss, total_loss / i_step))
 
     time_taken = time.time() - start_time
-    print("Time taken for this epoch:", time_taken)
+    # print("Time taken for this epoch:", time_taken)
 
     # Return the average loss over that epoch
     return total_loss / i_step
 
 
 def validate(caption_model, image_model, data_loader_val, use_gpu):
-    indices = data_loader_val.dataset.get_indices()
-    new_sampler = data.sampler.SubsetRandomSampler(indices=indices)
-    data_loader_val.batch_sampler.sampler = new_sampler
-
-    for batch in data_loader_val:
-        image_ip_val, caption_glove_ip_val = batch[0], batch[1]
-        break
+    total_loss_val = 0.0
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    image_ip_val = image_ip_val.to(device)
-    caption_glove_ip_val = caption_glove_ip_val.to(device)
-
     image_model = image_model.to(device)
     caption_model = caption_model.to(device)
     image_model = image_model.to(device)
     image_model.eval()
     caption_model.eval()
-    I_embeddings = []
-    C_embeddings = []
 
-    loss_scores = list()
-    with torch.no_grad():
-        image_output_val = image_model(image_ip_val)
-        caption_output_val = caption_model(caption_glove_ip_val)
+    print('---------------------------------------------------------')
 
-        loss = custom_loss(image_output_val, caption_output_val)
-        loss_scores.append(loss)
-        # print ("Shape of current Validation Batch",caption_glove_ip_val.shape)
-        print("Validation Loss: ", loss)
+    for i_step_val in range(1, 2):
+        indices = data_loader_val.dataset.get_indices()
+        new_sampler = data.sampler.SubsetRandomSampler(indices=indices)
+        data_loader_val.batch_sampler.sampler = new_sampler
+
+        for batch in data_loader_val:
+            image_ip_val, caption_glove_ip_val = batch[0], batch[1]
+            break
+
+        image_ip_val = image_ip_val.to(device)
+        caption_glove_ip_val = caption_glove_ip_val.to(device)
+
+        # I_embeddings = []
+        # C_embeddings = []
+
+        loss_scores = list()
+
+        with torch.no_grad():
+            image_output_val = image_model(image_ip_val)
+            caption_output_val = caption_model(caption_glove_ip_val)
+
+            loss = custom_loss(image_output_val, caption_output_val)
+            loss_scores.append(loss)
+            total_loss_val += loss
+            # print ("Shape of current Validation Batch",caption_glove_ip_val.shape)
+
+            # print ("Validation Loss: ",float(loss.data))
+        print("Step: %d, current loss: %0.4f, avg_loss: %0.4f" % (i_step_val, loss, total_loss_val / i_step_val))
+
+    print('---------------------------------------------------------')
+    return total_loss_val / i_step_val
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

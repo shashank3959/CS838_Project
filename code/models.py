@@ -49,3 +49,19 @@ class VGG19(nn.Module):
         x = self.rel(x)
         return x
 
+class ResNet50(nn.Module):
+    def __init__(self, embedding_dim=1024, pretrained=True):
+        super(ResNet50, self).__init__()
+        seed_model = imagemodels.resnet50(pretrained=pretrained)
+        seed_model = nn.Sequential(*list(seed_model.children())[:-3])  # remove final maxpool
+        self.pre_mod = seed_model
+        self.c1 = nn.Conv2d(1024, embedding_dim, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        self.bn = nn.BatchNorm2d(embedding_dim)
+        self.rel = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        x = self.pre_mod(x)
+        x = self.c1(x)
+        x = self.bn(x)
+        x = self.rel(x)
+        return x

@@ -140,8 +140,8 @@ def main(args):
 
     print("Back to main")
     resume_filename = 'runs/%s/' % (args.name) + 'model_best.pth.tar'
-    _, best_loss1 = load_checkpoint(image_model, caption_model, args.resume)
-    val_loss1 = validate(caption_model, image_model, data_loader_val, resume_filename)
+    epoch, best_loss1 = load_checkpoint(image_model, caption_model, args.resume)
+    val_loss1 = validate(caption_model, image_model, data_loader_val, epoch, args.use_gpu)
     print("========================================================")
     print("========================================================")
     print("Final Loss : ", float(val_loss1.data))

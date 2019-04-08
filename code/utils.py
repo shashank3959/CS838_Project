@@ -33,7 +33,7 @@ def compute_similarity_score(matchmap, score_type):
         raise ValueError
 
 
-def custom_loss(image_output, text_output, score_type='Avg_Both', margin=2):
+def custom_loss(image_output, text_output, score_type='Avg_Both', margin=1):
     assert (image_output.dim() == 4)
     assert (text_output.dim() == 3)
 

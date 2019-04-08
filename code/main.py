@@ -41,10 +41,14 @@ parser.add_argument("--n_print_steps", type=int, default=100,
 parser.add_argument("--image-model", type=str, default="VGG16",
                     help="image model architecture", choices=["VGG16"])
 parser.add_argument("--pretrained-image-model", action="store_true",
-                    dest="pretrained_image_model", help="Use an image network pretrained on ImageNet")
-parser.add_argument("--margin", type=float, default=1.0, help="Margin parameter for triplet loss")
-parser.add_argument("--crop_size", type=int, default=224, help="size for randomly cropping images")
-parser.add_argument("--use_gpu", type=bool, default=True, help="Use GPU to accelerate training")
+                    dest="pretrained_image_model",
+                    help="Use an image network pretrained on ImageNet")
+parser.add_argument("--margin", type=float, default=1.0,
+                    help="Margin parameter for triplet loss")
+parser.add_argument("--crop_size", type=int, default=224,
+                    help="size for randomly cropping images")
+parser.add_argument("--use_gpu", type=bool, default=True,
+                    help="Use GPU to accelerate training")
 parser.add_argument('--resume', default='', type=str,
                     help='path to latest checkpoint (default: none)')
 parser.add_argument('--name', default='Two_Branch_Image_Sentence', type=str,
@@ -60,7 +64,7 @@ def main(args):
     print("Process %s, running on %s: starting (%s)" % (
         os.getpid(), os.name, time.asctime()))
 
-    image_model = VGG19(pretrained=args.pretrained_image_model)
+    image_model = VGG19(pretrained=True)
     caption_model = LSTMBranch(args.batch_size)
 
     if torch.cuda.is_available() and args.use_gpu == True:
@@ -68,7 +72,7 @@ def main(args):
         image_model = image_model.cuda()
         caption_model = caption_model.cuda()
 
-    start_epoch, best_loss = load_checkpoint(image_model, caption_model, args.resume)
+    # start_epoch, best_loss = load_checkpoint(image_model, caption_model, args.resume)
 
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -165,7 +169,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
 
 def load_checkpoint(image_model, caption_model, resume_filename):
     start_epoch = 1
-    best_loss = 4.0
+    best_loss = 2.0
 
     if resume_filename:
         if os.path.isfile(resume_filename):

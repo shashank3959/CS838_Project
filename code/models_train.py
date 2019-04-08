@@ -3,11 +3,10 @@ import torch.utils.data as data
 from utils import matchmap_generate, compute_similarity_score, custom_loss
 import torch
 
-def train(data_loader_train, image_model, caption_model, optimizer, epoch, total_train_step, batch_size, use_gpu=False, start_step=1, start_loss=0.0):
-    """Train model for exactly one epoch using the parameters given"""
 
-    image_model.train()
-    caption_model.train()
+def train(data_loader_train, data_loader_val, image_model, caption_model, optimizer, epoch, total_train_step,
+          batch_size, use_gpu=False, start_step=1, start_loss=0.0):
+    """Train model for exactly one epoch using the parameters given"""
 
     total_loss = start_loss
 
@@ -15,8 +14,11 @@ def train(data_loader_train, image_model, caption_model, optimizer, epoch, total
 
     loss_scores = list()
 
-    #for i_step in range(start_step, total_train_step + 1):
-    for i_step in range(1, 500):
+    # for i_step in range(start_step, total_train_step + 1):
+    for i_step in range(1, 5):
+        image_model.train()
+        caption_model.train()
+
         indices = data_loader_train.dataset.get_indices()
         # Create a batch sampler to retrieve a batch with the sampled indices
         new_sampler = data.sampler.SubsetRandomSampler(indices=indices)
@@ -28,7 +30,7 @@ def train(data_loader_train, image_model, caption_model, optimizer, epoch, total
             break
 
         # Move to GPU if CUDA is available
-        if torch.cuda.is_available() and use_gpu==True:
+        if torch.cuda.is_available() and use_gpu == True:
             image_ip = image_ip.cuda()
             caption_glove_ip = caption_glove_ip.cuda()
 
@@ -53,10 +55,46 @@ def train(data_loader_train, image_model, caption_model, optimizer, epoch, total
         optimizer.step()
 
         # Aggregate loss statistics
-        print("Step: %d, current loss: %0.4f, avg_loss: %0.4f, total_loss: %0.4f" % (i_step, loss, total_loss/i_step, total_loss))
+        print("Step: %d, current loss: %0.4f, avg_loss: %0.4f" % (i_step, loss, total_loss / i_step))
 
     time_taken = time.time() - start_time
     print("Time taken for this epoch:", time_taken)
 
     # Return the average loss over that epoch
-    return total_loss/i_step
+    return total_loss / i_step
+
+
+def validate(caption_model, image_model, data_loader_val, use_gpu):
+    indices = data_loader_val.dataset.get_indices()
+    new_sampler = data.sampler.SubsetRandomSampler(indices=indices)
+    data_loader_val.batch_sampler.sampler = new_sampler
+
+    for batch in data_loader_val:
+        image_ip_val, caption_glove_ip_val = batch[0], batch[1]
+        break
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    image_ip_val = image_ip_val.to(device)
+    caption_glove_ip_val = caption_glove_ip_val.to(device)
+
+    image_model = image_model.to(device)
+    caption_model = caption_model.to(device)
+    image_model = image_model.to(device)
+    image_model.eval()
+    caption_model.eval()
+    I_embeddings = []
+    C_embeddings = []
+
+    loss_scores = list()
+    with torch.no_grad():
+        image_output_val = image_model(image_ip_val)
+        caption_output_val = caption_model(caption_glove_ip_val)
+
+        loss = custom_loss(image_output_val, caption_output_val)
+        loss_scores.append(loss)
+        # print ("Shape of current Validation Batch",caption_glove_ip_val.shape)
+        print("Validation Loss: ", loss)
+
+
+

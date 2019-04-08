@@ -4,7 +4,7 @@ import numpy as np
 
 def matchmap_generate(image, text):
     assert (image.dim() == 3)
-    assert(text.dim() == 2)
+    assert (text.dim() == 2)
     depth = image.size(0)
     height = image.size(1)
     width = image.size(2)
@@ -19,7 +19,7 @@ def matchmap_generate(image, text):
 
 
 def compute_similarity_score(matchmap, score_type):
-    assert(matchmap.dim() == 3)
+    assert (matchmap.dim() == 3)
     if score_type == 'Avg_Both':
         return matchmap.mean()
     elif score_type == 'Max_Img':
@@ -33,10 +33,9 @@ def compute_similarity_score(matchmap, score_type):
         raise ValueError
 
 
-def custom_loss(image_output, text_output, score_type = 'Max_Img', margin = 1):
-
-    assert(image_output.dim() == 4)
-    assert(text_output.dim() == 3)
+def custom_loss(image_output, text_output, score_type='Avg_Both', margin=2):
+    assert (image_output.dim() == 4)
+    assert (text_output.dim() == 3)
 
     n_imgs = image_output.size(0)
 
@@ -48,13 +47,15 @@ def custom_loss(image_output, text_output, score_type = 'Max_Img', margin = 1):
 
         # Create impostor index
         while img_impostor_index == i:
-            img_impostor_index = np.random.randint(0,n_imgs)
+            img_impostor_index = np.random.randint(0, n_imgs)
         while text_impostor_index == i:
-            text_impostor_index = np.random.randint(0,n_imgs)
+            text_impostor_index = np.random.randint(0, n_imgs)
 
         anchor_score = compute_similarity_score(matchmap_generate(image_output[i], text_output[i]), score_type)
-        image_imp_score = compute_similarity_score(matchmap_generate(image_output[img_impostor_index], text_output[i]), score_type)
-        text_imp_score = compute_similarity_score(matchmap_generate(image_output[i], text_output[text_impostor_index]), score_type)
+        image_imp_score = compute_similarity_score(matchmap_generate(image_output[img_impostor_index], text_output[i]),
+                                                   score_type)
+        text_imp_score = compute_similarity_score(matchmap_generate(image_output[i], text_output[text_impostor_index]),
+                                                  score_type)
 
         text_imp = text_imp_score - anchor_score + margin
         image_imp = image_imp_score - anchor_score + margin
@@ -65,7 +66,7 @@ def custom_loss(image_output, text_output, score_type = 'Max_Img', margin = 1):
         if (image_imp.data > 0).all():
             loss = loss + image_imp
 
-    loss = loss/n_imgs
+    loss = loss / n_imgs
     return loss
 
 
@@ -89,7 +90,7 @@ class AverageMeter(object):
 def adjust_learning_rate(optimizer, epoch):
     # Sets the learning rate to the initial LR decayed by 10 every 10 epochs
     lr = 1
-    adjustment_factor = int(np.floor(epoch / 10.0))
+    adjustment_factor = int(np.floor(epoch / 30.0))
     for i in range(adjustment_factor):
         lr *= .1
 

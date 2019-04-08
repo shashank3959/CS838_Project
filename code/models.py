@@ -16,14 +16,14 @@ class LSTMBranch(nn.Module):
 
         self.lstm = nn.LSTM(ip_size, op_size)
 
-    def forward(self, ip_matrix, use_gpu=False):
+    def forward(self, ip_matrix, use_gpu=True):
         ip_matrix = ip_matrix.permute(1, 0, 2)
         ip_matrix.requires_grad = False
         h_0 = Variable(torch.zeros(1, self.batch_size, self.op_size))
         c_0 = Variable(torch.zeros(1, self.batch_size, self.op_size))
 
         # Move to GPU if CUDA is available
-        if torch.cuda.is_available() and use_gpu == True:
+        if torch.cuda.is_available() and use_gpu:
             h_0 = h_0.cuda()
             c_0 = c_0.cuda()
 
@@ -37,9 +37,6 @@ class VGG19(nn.Module):
         super(VGG19, self).__init__()
         seed_model = imagemodels.__dict__['vgg19'](pretrained=pretrained).features
         seed_model = nn.Sequential(*list(seed_model.children())[:-1])  # remove final maxpool
-        # last_layer_index = len(list(seed_model.children()))
-        # seed_model.add_module(str(last_layer_index),nn.Conv2d(512, embedding_dim, kernel_size=(3,3), stride=(1,1), padding=(1,1)))
-        # self.image_model = seed_model
         self.pre_mod = seed_model
         self.c1 = nn.Conv2d(512, embedding_dim, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
         self.bn = nn.BatchNorm2d(embedding_dim)

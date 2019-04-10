@@ -28,8 +28,13 @@ class LSTMBranch(nn.Module):
             c_0 = c_0.cuda()
 
         op, _ = self.lstm(ip_matrix, (h_0, c_0))
-        op = op.permute(1, 0, 2)
-        return op
+        x1 = op.permute(1, 0, 2)
+        x = x1.contiguous()
+
+        norm = x.view(x.size(0), -1).norm(p=2, dim=1, keepdim=True)
+        x_normalized = x.view(x.size(0), -1).div(norm.expand_as(x.view(x.size(0), -1))).view(x.size())
+
+        return x_normalized
 
 
 class VGG19(nn.Module):
@@ -47,7 +52,13 @@ class VGG19(nn.Module):
         x = self.c1(x)
         x = self.bn(x)
         x = self.rel(x)
+
+        # l2 normalization
+        norm = x.view(x.size(0), -1).norm(p=2, dim=1, keepdim=True)
+        x_normalized = x.view(x.size(0), -1).div(norm.expand_as(x.view(x.size(0), -1))).view(x.size())
+
         return x
+
 
 class ResNet50(nn.Module):
     def __init__(self, embedding_dim=1024, pretrained=True):

@@ -80,6 +80,11 @@ def validate(caption_model, image_model, data_loader_val, epoch, use_gpu):
 
     print('---------------------------------------------------------')
 
+    # Lists to store image and caption embeddings, and word counts of captions
+    I_embeddings = []
+    C_embeddings = []
+    word_counts = []
+
     for i_step_val in range(1, 11):
         indices = data_loader_val.dataset.get_indices()
         new_sampler = data.sampler.SubsetRandomSampler(indices=indices)
@@ -91,6 +96,12 @@ def validate(caption_model, image_model, data_loader_val, epoch, use_gpu):
 
         image_ip_val = image_ip_val.to(device)
         caption_glove_ip_val = caption_glove_ip_val.to(device)
+
+        I_embeddings.append(image_ip_val)
+        C_embeddings.append(caption_glove_ip_val)
+
+        # Number of words in this caption
+        word_counts.append(caption_output_val.size(-2))
 
         loss_scores = list()
 
@@ -109,4 +120,12 @@ def validate(caption_model, image_model, data_loader_val, epoch, use_gpu):
         writer.add_scalar('data/validation_loss', val_losses.val, niter)
 
     print('---------------------------------------------------------')
+
+    print("Calculating Recall scores:")
+    # Calculating recall scores
+    image_output = torch.cat(I_embeddings)
+    caption_output = torch.cat(C_embeddings)
+
+    recalls = calc_recalls(image_output, caption_output, word_counts)
+
     return total_loss_val / i_step_val

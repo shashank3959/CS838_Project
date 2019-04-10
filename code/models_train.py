@@ -1,8 +1,8 @@
 import time
 import torch.utils.data as data
-from utils import matchmap_generate, compute_similarity_score, custom_loss, AverageMeter
+from utils import *
 import torch
-
+from statistics import mean
 from tensorboardX import SummaryWriter
 
 writer = SummaryWriter('../logs')
@@ -80,10 +80,13 @@ def validate(caption_model, image_model, data_loader_val, epoch, use_gpu):
 
     print('---------------------------------------------------------')
 
-    # Lists to store image and caption embeddings, and word counts of captions
-    I_embeddings = []
-    C_embeddings = []
-    word_counts = []
+    # Lists to store recall scores
+    C_r10 = []
+    I_r10 = []
+    C_r5 = []
+    I_r5 = []
+    C_r1 = []
+    I_r1 = []
 
     for i_step_val in range(1, 11):
         indices = data_loader_val.dataset.get_indices()
@@ -97,12 +100,6 @@ def validate(caption_model, image_model, data_loader_val, epoch, use_gpu):
         image_ip_val = image_ip_val.to(device)
         caption_glove_ip_val = caption_glove_ip_val.to(device)
 
-        I_embeddings.append(image_ip_val)
-        C_embeddings.append(caption_glove_ip_val)
-
-        # Number of words in this caption
-        word_counts.append(caption_output_val.size(-2))
-
         loss_scores = list()
 
         with torch.no_grad():
@@ -113,19 +110,36 @@ def validate(caption_model, image_model, data_loader_val, epoch, use_gpu):
             loss_scores.append(loss)
             total_loss_val += loss
 
+        I_embeddings = []
+        C_embeddings = []
+        I_embeddings.append(image_output_val)
+        C_embeddings.append(caption_output_val)
+
+        image_output = torch.cat(I_embeddings)
+        caption_output = torch.cat(C_embeddings)
+
+        # Calculating recall scores
+        recalls = calc_recalls(image_output, caption_output)
+        C_r10.append(recalls['C_r10'])
+        I_r10.append(recalls['I_r10'])
+        C_r5.append(recalls['C_r5'])
+        I_r5.append(recalls['I_r5'])
+        C_r1.append(recalls['C_r1'])
+        I_r1.append(recalls['I_r1'])
+
         print("Step: %d, current loss: %0.4f, avg_loss: %0.4f" % (i_step_val, loss, total_loss_val / i_step_val))
 
         val_losses.update(loss.data[0], image_ip_val.size(0))
         niter = epoch + i_step_val
         writer.add_scalar('data/validation_loss', val_losses.val, niter)
 
+    print(' Caption Mean R@10 {C_r10:.3f} Image Mean R@10 {I_r10:.3f}'
+                      .format(C_r10=mean(C_r10), I_r10=mean(I_r10)), flush=True)
+    print(' Caption Mean R@5 {C_r5:.3f} Image Mean R@5 {I_r5:.3f}'
+                      .format(C_r5=mean(C_r5), I_r5=mean(I_r5)), flush=True)
+    print(' Caption Mean R@1 {C_r1:.3f} Image Mean R@1 {I_r1:.3f}'
+                      .format(C_r1=mean(C_r1), I_r1=mean(I_r1)), flush=True)
     print('---------------------------------------------------------')
 
-    print("Calculating Recall scores:")
-    # Calculating recall scores
-    image_output = torch.cat(I_embeddings)
-    caption_output = torch.cat(C_embeddings)
-
-    recalls = calc_recalls(image_output, caption_output, word_counts)
 
     return total_loss_val / i_step_val

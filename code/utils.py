@@ -98,7 +98,7 @@ def adjust_learning_rate(optimizer, epoch):
         param_group['lr'] *= lr
 
 
-def compute_matchmap_similarity_matrix(image_outputs, caption_outputs, word_counts, score_type="Max_Img"):
+def compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_type="Max_Img"):
     assert(image_outputs.dim() == 4)
     assert(caption_outputs.dim() == 3)
     batch_size = image_outputs.size(0)
@@ -107,17 +107,15 @@ def compute_matchmap_similarity_matrix(image_outputs, caption_outputs, word_coun
 
     for image_idx in range(batch_size):
         for word_idx in range(batch_size):
-            # Number of words in this caption, making sure there is atleast 1 word in the caption
-            nw = max(1, word_counts[word_idx])
             sim_mat[image_idx, word_idx] = compute_similarity_score(matchmap_generate(
-                image_outputs[image_idx], caption_outputs[word_idx][:, 0:nw]), score_type)
+                image_outputs[image_idx], caption_outputs[word_idx]), score_type)
 
     return sim_mat
 
 
-def calc_recalls(image_outputs, caption_outputs, word_counts):
+def calc_recalls(image_outputs, caption_outputs):
 
-    sim_mat = compute_matchmap_similarity_matrix(image_outputs, caption_outputs, word_counts, score_type='Max_Img')
+    sim_mat = compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_type='Max_Img')
     batch_size = sim_mat.size(0)
 
     # torch.topk() returns the k largest elements of a given input tensor along a given dimension
@@ -177,15 +175,15 @@ def calc_recalls(image_outputs, caption_outputs, word_counts):
         # Recall at 10
         # If the caption has been found in the top 10
         if C_foundind >= 0 and C_foundind < 10:
-            C_r5.update(1)  # Found in top 10
+            C_r10.update(1)  # Found in top 10
         else:
-            C_r5.update(0)
+            C_r10.update(0)
 
         # If the image has been found in the top 10
         if I_foundind >=0 and I_foundind < 10:
-            I_r5.update(1)
+            I_r10.update(1)
         else:
-            I_r5.update(0)
+            I_r10.update(0)
 
     # Create a dictionary of recall scores
     recalls = {'C_r1': C_r1.avg, 'C_r5': C_r5.avg, 'C_r10': C_r10.avg,

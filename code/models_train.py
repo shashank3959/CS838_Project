@@ -20,7 +20,7 @@ def train(data_loader_train, data_loader_val, image_model, caption_model,
     loss_scores = list()
 
     # for i_step in range(start_step, total_train_step + 1):
-    for i_step in range(start_step, 3):
+    for i_step in range(start_step, 101):
         image_model.train()
         caption_model.train()
 
@@ -93,7 +93,7 @@ def validate(caption_model, image_model, data_loader_val, epoch,
     C_r1 = []
     I_r1 = []
 
-    for i_step_val in range(1, 3):
+    for i_step_val in range(1, 11):
         indices = data_loader_val.dataset.get_indices()
         new_sampler = data.sampler.SubsetRandomSampler(indices=indices)
         data_loader_val.batch_sampler.sampler = new_sampler

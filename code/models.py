@@ -34,7 +34,7 @@ class LSTMBranch(nn.Module):
         norm = x.view(x.size(0), -1).norm(p=2, dim=1, keepdim=True)
         x_normalized = x.view(x.size(0), -1).div(norm.expand_as(x.view(x.size(0), -1))).view(x.size())
 
-        return x_normalized
+        return x1
 
 
 class VGG19(nn.Module):

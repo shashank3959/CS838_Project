@@ -1,75 +1,6 @@
 import torch
 import numpy as np
 
-
-def matchmap_generate(image, text):
-    assert (image.dim() == 3)
-    assert (text.dim() == 2)
-    depth = image.size(0)
-    height = image.size(1)
-    width = image.size(2)
-
-    seq_length = text.size(0)
-
-    image_rep = image.view(depth, -1)
-    match_map = torch.mm(text, image_rep)
-    match_map = match_map.view(seq_length, height, width)
-
-    return match_map
-
-
-def compute_similarity_score(matchmap, score_type):
-    assert (matchmap.dim() == 3)
-    if score_type == 'Avg_Both':
-        return matchmap.mean()
-    elif score_type == 'Max_Img':
-        max_height, _ = torch.max(matchmap, 1)
-        max_image, _ = torch.max(matchmap, 1)
-        return max_image.mean()
-    elif score_type == 'Max_Text':
-        max_text, _ = torch.max(matchmap, 0)
-        return max_text.mean()
-    else:
-        raise ValueError
-
-
-def custom_loss(image_output, text_output, score_type='Avg_Both', margin=1):
-    assert (image_output.dim() == 4)
-    assert (text_output.dim() == 3)
-
-    n_imgs = image_output.size(0)
-
-    loss = torch.zeros(1, device=image_output.device, requires_grad=True)
-
-    for i in range(n_imgs):
-        img_impostor_index = i
-        text_impostor_index = i
-
-        # Create impostor index
-        while img_impostor_index == i:
-            img_impostor_index = np.random.randint(0, n_imgs)
-        while text_impostor_index == i:
-            text_impostor_index = np.random.randint(0, n_imgs)
-
-        anchor_score = compute_similarity_score(matchmap_generate(image_output[i], text_output[i]), score_type)
-        image_imp_score = compute_similarity_score(matchmap_generate(image_output[img_impostor_index], text_output[i]),
-                                                   score_type)
-        text_imp_score = compute_similarity_score(matchmap_generate(image_output[i], text_output[text_impostor_index]),
-                                                  score_type)
-
-        text_imp = text_imp_score - anchor_score + margin
-        image_imp = image_imp_score - anchor_score + margin
-
-        if (text_imp.data > 0).all():
-            loss = loss + text_imp
-
-        if (image_imp.data > 0).all():
-            loss = loss + image_imp
-
-    loss = loss / n_imgs
-    return loss
-
-
 class AverageMeter(object):
     def __init__(self):
         self.reset()
@@ -98,7 +29,70 @@ def adjust_learning_rate(optimizer, epoch):
         param_group['lr'] *= lr
 
 
-def compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_type="Max_Img"):
+def matchmap_generate(image, text):
+    """
+    Generates Matchmap for a single image and text pair
+    :param image: Single image embedding
+    :param text: Single caption embedding
+    :return: 3D tensor of matchmap
+    """
+    assert (image.dim() == 3)
+    assert (text.dim() == 2)
+    depth = image.size(0)
+    height = image.size(1)
+    width = image.size(2)
+
+    seq_length = text.size(0)
+
+    image_rep = image.view(depth, -1)
+    match_map = torch.mm(text, image_rep)
+    match_map = match_map.view(seq_length, height, width)
+
+    return match_map
+
+
+def score_from_matchmap(matchmap, score_type):
+    """
+    Generates similarity score from matchmap based on score_type
+    :param matchmap: 3D matchmap
+    :param score_type: Type of score you want
+    :return: single tensor with similarity score
+    """
+    assert (matchmap.dim() == 3)
+    if score_type == 'Avg_Both':
+        return matchmap.mean()
+    elif score_type == 'Max_Img':
+        max_height, _ = torch.max(matchmap, 1)
+        max_image, _ = torch.max(matchmap, 1)
+        return max_image.mean()
+    elif score_type == 'Max_Text':
+        max_text, _ = torch.max(matchmap, 0)
+        return max_text.mean()
+    else:
+        raise ValueError
+
+
+def score_function(image, text, score_type='Avg_Both'):
+    """
+    Generates score from image-text pair
+    :param image: Single image embedding
+    :param text: Single caption embedding
+    :param score_type: Score type for score
+    :return: single tensor score
+    """
+    matchmap = matchmap_generate(image, text)
+    score = score_from_matchmap(matchmap, score_type)
+    return score
+
+
+def compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_type="Avg_Both"):
+    """
+    Generates a similarity score matrix for a given batch of image-caption data
+    :param image_outputs: batch of image embeddings
+    :param caption_outputs: batch of caption embeddings
+    :param score_type: score type for similarity function
+    :return: similarity matrix
+    """
     assert(image_outputs.dim() == 4)
     assert(caption_outputs.dim() == 3)
     batch_size = image_outputs.size(0)
@@ -107,15 +101,69 @@ def compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_typ
 
     for image_idx in range(batch_size):
         for word_idx in range(batch_size):
-            sim_mat[image_idx, word_idx] = compute_similarity_score(matchmap_generate(
-                image_outputs[image_idx], caption_outputs[word_idx]), score_type)
+            sim_mat[image_idx, word_idx] = score_function(image_outputs[image_idx], caption_outputs[word_idx], score_type)
 
     return sim_mat
 
 
-def calc_recalls(image_outputs, caption_outputs):
+def custom_loss(image_outputs, caption_outputs, score_type='Avg_Both',
+                margin=0.1, sampler='hard'):
+    assert (image_outputs.dim() == 4)
+    assert (caption_outputs.dim() == 3)
+    assert (type(sampler) == str)
+    assert(type(score_type) == str)
 
-    sim_mat = compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_type='Max_Img')
+    sim_mat = compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_type)
+    n_imgs = image_outputs.size(0)
+    loss = torch.zeros(1, device=image_outputs.device, requires_grad=True)
+
+    # C2I: Finding the best 2 images for each caption
+    C2I_scores, C2I_ind = sim_mat.topk(2, 0)
+
+    # I2C: Finding the best 2 captions for each image
+    I2C_scores, I2C_ind = sim_mat.topk(2, 1)
+
+    for i in range(n_imgs):
+        if sampler == 'hard':
+            # Hard Negative Triplet Mining
+            img_impostor_index = C2I_ind[0][i]
+            text_impostor_index = I2C_ind[i][0]
+
+            if img_impostor_index == i:
+                img_impostor_index = C2I_ind[1][i]
+            if text_impostor_index == i:
+                text_impostor_index = I2C_ind[i][1]
+
+
+        else:
+            img_impostor_index = i
+            text_impostor_index = i
+            # Random Triplet Sampling
+            while img_impostor_index == i:
+                img_impostor_index = np.random.randint(0, n_imgs)
+            while text_impostor_index == i:
+                text_impostor_index = np.random.randint(0, n_imgs)
+
+        anchor_score = score_function(image_outputs[i], caption_outputs[i], score_type)
+        image_imp_score = score_function(image_outputs[img_impostor_index], caption_outputs[i],score_type)
+        text_imp_score = score_function(image_outputs[i], caption_outputs[text_impostor_index], score_type)
+
+        text_imp = text_imp_score - anchor_score + margin
+        image_imp = image_imp_score - anchor_score + margin
+
+        if (text_imp.data > 0).all():
+            loss = loss + text_imp
+
+        if (image_imp.data > 0).all():
+            loss = loss + image_imp
+
+    loss = loss / n_imgs
+    return loss
+
+
+def calc_recalls(image_outputs, caption_outputs, score_type):
+
+    sim_mat = compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_type)
     batch_size = sim_mat.size(0)
 
     # torch.topk() returns the k largest elements of a given input tensor along a given dimension

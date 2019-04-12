@@ -8,8 +8,10 @@ from tensorboardX import SummaryWriter
 writer = SummaryWriter('../logs')
 
 
-def train(data_loader_train, data_loader_val, image_model, caption_model, optimizer, epoch, total_train_step,
+def train(data_loader_train, data_loader_val, image_model, caption_model,
+          optimizer, epoch, score_type, sampler, margin, total_train_step,
           batch_size, use_gpu=False, start_step=1, start_loss=0.0):
+    # Trains model for 1 Epoch
     losses = AverageMeter()
     total_loss = start_loss
 
@@ -18,7 +20,7 @@ def train(data_loader_train, data_loader_val, image_model, caption_model, optimi
     loss_scores = list()
 
     # for i_step in range(start_step, total_train_step + 1):
-    for i_step in range(1, 101):
+    for i_step in range(start_step, 101):
         image_model.train()
         caption_model.train()
 
@@ -43,11 +45,13 @@ def train(data_loader_train, data_loader_val, image_model, caption_model, optimi
         sim_scores = list()
 
         for sample in range(batch_size):
-            mmap = matchmap_generate(image_output[sample], caption_glove_output[sample])
-            score = compute_similarity_score(mmap, "Max_Img")
+            # mmap = matchmap_generate(image_output[sample], caption_glove_output[sample])
+            # score = compute_similarity_score(mmap, "Max_Img")
+            score = score_function(image_output[sample], caption_glove_output[sample], score_type)
             sim_scores.append(score)
 
-        loss = custom_loss(image_output, caption_glove_output)
+        loss = custom_loss(image_output, caption_glove_output,
+                           score_type, margin, sampler)
         loss_scores.append(loss)
 
         optimizer.zero_grad()
@@ -56,7 +60,7 @@ def train(data_loader_train, data_loader_val, image_model, caption_model, optimi
         optimizer.step()
 
         losses.update(loss.data[0], image_ip.size(0))
-        niter = epoch + i_step
+        niter = epoch * i_step + i_step
         writer.add_scalar('data/training_loss', losses.val, niter)
 
         print("Step: %d, current loss: %0.4f, avg_loss: %0.4f" % (i_step, loss, total_loss / i_step))
@@ -67,7 +71,8 @@ def train(data_loader_train, data_loader_val, image_model, caption_model, optimi
     return total_loss / i_step
 
 
-def validate(caption_model, image_model, data_loader_val, epoch, use_gpu):
+def validate(caption_model, image_model, data_loader_val, epoch,
+             score_type, sampler, margin, use_gpu):
     val_losses = AverageMeter()
     total_loss_val = 0.0
 
@@ -106,7 +111,8 @@ def validate(caption_model, image_model, data_loader_val, epoch, use_gpu):
             image_output_val = image_model(image_ip_val)
             caption_output_val = caption_model(caption_glove_ip_val)
 
-            loss = custom_loss(image_output_val, caption_output_val)
+            loss = custom_loss(image_output_val, caption_output_val,
+                               score_type, margin, sampler)
             loss_scores.append(loss)
             total_loss_val += loss
 
@@ -119,7 +125,7 @@ def validate(caption_model, image_model, data_loader_val, epoch, use_gpu):
         caption_output = torch.cat(C_embeddings)
 
         # Calculating recall scores
-        recalls = calc_recalls(image_output, caption_output)
+        recalls = calc_recalls(image_output, caption_output, score_type)
         C_r10.append(recalls['C_r10'])
         I_r10.append(recalls['I_r10'])
         C_r5.append(recalls['C_r5'])
@@ -130,16 +136,21 @@ def validate(caption_model, image_model, data_loader_val, epoch, use_gpu):
         print("Step: %d, current loss: %0.4f, avg_loss: %0.4f" % (i_step_val, loss, total_loss_val / i_step_val))
 
         val_losses.update(loss.data[0], image_ip_val.size(0))
-        niter = epoch + i_step_val
+        niter = epoch * i_step_val + i_step_val
         writer.add_scalar('data/validation_loss', val_losses.val, niter)
+        writer.add_scalar('data/caption_R10', C_r10, niter)
+        writer.add_scalar('data/caption_R5', C_r5, niter)
+        writer.add_scalar('data/caption_R1', C_r1, niter)
+        writer.add_scalar('data/image_R10', I_r10, niter)
+        writer.add_scalar('data/image_R5', I_r5, niter)
+        writer.add_scalar('data/image_R1', I_r1, niter)
 
     print(' Caption Mean R@10 {C_r10:.3f} Image Mean R@10 {I_r10:.3f}'
-                      .format(C_r10=mean(C_r10), I_r10=mean(I_r10)), flush=True)
+          .format(C_r10=mean(C_r10), I_r10=mean(I_r10)), flush=True)
     print(' Caption Mean R@5 {C_r5:.3f} Image Mean R@5 {I_r5:.3f}'
-                      .format(C_r5=mean(C_r5), I_r5=mean(I_r5)), flush=True)
+          .format(C_r5=mean(C_r5), I_r5=mean(I_r5)), flush=True)
     print(' Caption Mean R@1 {C_r1:.3f} Image Mean R@1 {I_r1:.3f}'
-                      .format(C_r1=mean(C_r1), I_r1=mean(I_r1)), flush=True)
+          .format(C_r1=mean(C_r1), I_r1=mean(I_r1)), flush=True)
     print('---------------------------------------------------------')
-
 
     return total_loss_val / i_step_val

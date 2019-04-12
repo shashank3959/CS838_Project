@@ -20,7 +20,7 @@ def train(data_loader_train, data_loader_val, image_model, caption_model,
     loss_scores = list()
 
     # for i_step in range(start_step, total_train_step + 1):
-    for i_step in range(start_step, 101):
+    for i_step in range(start_step, 3):
         image_model.train()
         caption_model.train()
 
@@ -93,7 +93,7 @@ def validate(caption_model, image_model, data_loader_val, epoch,
     C_r1 = []
     I_r1 = []
 
-    for i_step_val in range(1, 11):
+    for i_step_val in range(1, 3):
         indices = data_loader_val.dataset.get_indices()
         new_sampler = data.sampler.SubsetRandomSampler(indices=indices)
         data_loader_val.batch_sampler.sampler = new_sampler
@@ -138,12 +138,12 @@ def validate(caption_model, image_model, data_loader_val, epoch,
         val_losses.update(loss.data[0], image_ip_val.size(0))
         niter = epoch * i_step_val + i_step_val
         writer.add_scalar('data/validation_loss', val_losses.val, niter)
-        writer.add_scalar('data/caption_R10', C_r10, niter)
-        writer.add_scalar('data/caption_R5', C_r5, niter)
-        writer.add_scalar('data/caption_R1', C_r1, niter)
-        writer.add_scalar('data/image_R10', I_r10, niter)
-        writer.add_scalar('data/image_R5', I_r5, niter)
-        writer.add_scalar('data/image_R1', I_r1, niter)
+        writer.add_scalar('data/caption_R10', mean(C_r10), niter)
+        writer.add_scalar('data/caption_R5', mean(C_r5), niter)
+        writer.add_scalar('data/caption_R1', mean(C_r1), niter)
+        writer.add_scalar('data/image_R10', mean(I_r10), niter)
+        writer.add_scalar('data/image_R5', mean(I_r5), niter)
+        writer.add_scalar('data/image_R1', mean(I_r1), niter)
 
     print(' Caption Mean R@10 {C_r10:.3f} Image Mean R@10 {I_r10:.3f}'
           .format(C_r10=mean(C_r10), I_r10=mean(I_r10)), flush=True)

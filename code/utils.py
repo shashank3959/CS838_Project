@@ -18,15 +18,12 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def adjust_learning_rate(optimizer, epoch):
-    # Sets the learning rate to the initial LR decayed by 10 every 10 epochs
-    lr = 1
-    adjustment_factor = int(np.floor(epoch / 30.0))
-    for i in range(adjustment_factor):
-        lr *= .1
+def adjust_learning_rate(base_lr, lr_decay, optimizer, epoch):
+    # Sets the learning rate to the initial LR decayed by 10 every lr_decay epochs
+    lr = base_lr * (0.1 ** (epoch // lr_decay))
 
     for param_group in optimizer.param_groups:
-        param_group['lr'] *= lr
+        param_group['lr'] = lr
 
 
 def matchmap_generate(image, text):

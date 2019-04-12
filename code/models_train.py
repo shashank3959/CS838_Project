@@ -137,7 +137,7 @@ def validate(caption_model, image_model, data_loader_val, epoch,
 
         val_losses.update(loss.data[0], image_ip_val.size(0))
         niter = epoch * i_step_val + i_step_val
-        writer.add_scalar('data/validation_loss', val_losses.val, niter)
+        writer.add_scalar('data/val_loss', val_losses.val, niter)
         writer.add_scalar('data/caption_R10', mean(C_r10), niter)
         writer.add_scalar('data/caption_R5', mean(C_r5), niter)
         writer.add_scalar('data/caption_R1', mean(C_r1), niter)

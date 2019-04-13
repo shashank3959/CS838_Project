@@ -10,25 +10,21 @@ import torch
 import models
 from models_train import train
 from models_train import validate
-from models import VGG19, LSTMBranch
+from models import VGG19, LSTMBranch, ResNet50
 import math
 from utils import adjust_learning_rate
 from tensorboardX import SummaryWriter
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument("--data-train", type=str, default='',
-                    help="training data json")
-parser.add_argument("--data-val", type=str, default='',
-                    help="validation data json")
-parser.add_argument("--exp-dir", type=str, default="",
-                    help="directory to dump experiments")
+
+
 parser.add_argument("--optim", type=str, default="sgd",
                     help="training optimizer", choices=["sgd", "adam"])
 parser.add_argument('-b', '--batch-size', default=64, type=int,
                     metavar='N', help='mini-batch size (default: 100)')
 parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
                     metavar='LR', help='initial learning rate')
-parser.add_argument('--lr-decay', default=40, type=int, metavar='LRDECAY',
+parser.add_argument('--lr-decay', default=10, type=int, metavar='LRDECAY',
                     help='Divide the learning rate by 10 every lr_decay epochs')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
@@ -36,27 +32,26 @@ parser.add_argument('--weight-decay', '--wd', default=1e-7, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
 parser.add_argument("--n_epochs", type=int, default=10,
                     help="number of maximum training epochs. -1 default refers to infinite")
-parser.add_argument("--n_print_steps", type=int, default=100,
-                    help="number of steps to print statistics")
-parser.add_argument("--image-model", type=str, default="VGG16",
-                    help="image model architecture", choices=["VGG16"])
-parser.add_argument("--pretrained-image-model", action="store_true",
-                    dest="pretrained_image_model",
-                    help="Use an image network pretrained on ImageNet")
-parser.add_argument("--margin", type=float, default=1.0,
+parser.add_argument("--margin", type=float, default=0.1,
                     help="Margin parameter for triplet loss")
 parser.add_argument("--crop_size", type=int, default=224,
                     help="size for randomly cropping images")
 parser.add_argument("--use_gpu", type=bool, default=True,
                     help="Use GPU to accelerate training")
-parser.add_argument('--resume', default='', type=str,
-                    help='path to latest checkpoint (default: none)')
 parser.add_argument('--name', default='Two_Branch_Image_Sentence', type=str,
                     help='name of experiment')
 parser.add_argument('--minimum_gain', type=float, default=5e-1, metavar='N',
                     help='minimum performance gain for a model to be considered better. (default: 5e-1)')
 parser.add_argument('--no_gain_stop', type=int, default=10, metavar='N',
                     help='number of epochs used to perform early stopping based on validation performance (default: 10)')
+parser.add_argument('--score_type', type=str, default='Avg_Both',
+                    help='Metric used to compute score.')
+parser.add_argument("--sampler", type=str, default='hard',
+                    help="Sampling strategy")
+parser.add_argument("--cnn_model", type=str, default='vgg',
+                    help="CNN Model")
+parser.add_argument('--resume', default='', type=str,
+                    help='path to latest checkpoint of best model (default: none)')
 
 
 def main(args):
@@ -64,15 +59,18 @@ def main(args):
     print("Process %s, running on %s: starting (%s)" % (
         os.getpid(), os.name, time.asctime()))
 
-    image_model = VGG19(pretrained=True)
-    caption_model = LSTMBranch(args.batch_size)
+
+    if args.cnn_model =='vgg':
+        image_model = VGG19(pretrained=True)
+    else:
+        image_model = ResNet50(pretrained = True)
+
+    caption_model = LSTMBranch()
 
     if torch.cuda.is_available() and args.use_gpu == True:
         print("Loading models onto GPU to accelerate training")
         image_model = image_model.cuda()
         caption_model = caption_model.cuda()
-
-    # start_epoch, best_loss = load_checkpoint(image_model, caption_model, args.resume)
 
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -91,6 +89,7 @@ def main(args):
                                  batch_size=args.batch_size,
                                  vocab_from_file=True)
 
+    # Load saved model
     start_epoch, best_loss = load_checkpoint(image_model, caption_model, args.resume)
 
     # Get the learnable parameters
@@ -99,26 +98,30 @@ def main(args):
     params = image_trainables + caption_trainables
 
     # optimizer = torch.optim.Adam(params=params, lr=0.01)
-    optimizer = torch.optim.SGD(params=params, lr=0.01, momentum=0.9)
+    optimizer = torch.optim.SGD(params=params, lr=args.lr, momentum=0.9)
 
     total_train_step = math.ceil(
         len(data_loader_train.dataset.caption_lengths) / data_loader_train.batch_sampler.batch_size)
     # print("Total number of training steps are :", total_train_step)
-
+    print("Sampling strategy -> ", args.sampler)
     epoch = start_epoch
     best_epoch = start_epoch
 
     while (epoch - best_epoch) < args.no_gain_stop and (epoch <= args.n_epochs):
 
-        adjust_learning_rate(optimizer, epoch)
+        adjust_learning_rate(args.lr, args.lr_decay, optimizer, epoch)
         print("========================================================")
-        print("Epoch: %d Training starting" % (epoch))
+        print("Epoch: %d Training starting" % epoch)
         print("Learning rate : ", get_lr(optimizer))
-        train_loss = train(data_loader_train, data_loader_val, image_model, caption_model, optimizer, epoch,
-                           total_train_step, args.batch_size, args.use_gpu)
+        train_loss = train(data_loader_train, data_loader_val, image_model,
+                              caption_model, optimizer, epoch, args.score_type,
+                              args.sampler, args.margin, total_train_step,
+                              args.batch_size, args.use_gpu)
         print('---------------------------------------------------------')
-        print("Epoch: %d Validation starting" % (epoch))
-        val_loss = validate(caption_model, image_model, data_loader_val, epoch, args.use_gpu)
+        print("Epoch: %d Validation starting" % epoch)
+        val_loss = validate(caption_model, image_model, data_loader_val,
+                            epoch, args.score_type, args.sampler,
+                            args.margin, args.use_gpu)
         print("Epoch: ", epoch)
         print("Training Loss: ", float(train_loss.data))
         print("Validation Loss: ", float(val_loss.data))
@@ -141,7 +144,9 @@ def main(args):
     print("Back to main")
     resume_filename = 'runs/%s/' % (args.name) + 'model_best.pth.tar'
     epoch, best_loss1 = load_checkpoint(image_model, caption_model, args.resume)
-    val_loss1 = validate(caption_model, image_model, data_loader_val, epoch, args.use_gpu)
+    val_loss1 = validate(caption_model, image_model,
+                         data_loader_val, epoch, args.score_type,
+                         args.sampler, args.margin, args.use_gpu)
     print("========================================================")
     print("========================================================")
     print("Final Loss : ", float(val_loss1.data))
@@ -169,7 +174,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
 
 def load_checkpoint(image_model, caption_model, resume_filename):
     start_epoch = 1
-    best_loss = 2.0
+    best_loss = 2 * args.margin
 
     if resume_filename:
         if os.path.isfile(resume_filename):

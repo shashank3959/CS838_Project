@@ -7,10 +7,10 @@ import torch.utils.model_zoo as model_zoo
 
 
 class LSTMBranch(nn.Module):
-    def __init__(self, batch_size, ip_size=300, op_size=1024):
+    def __init__(self, ip_size=300, op_size=1024):
         super(LSTMBranch, self).__init__()
 
-        self.batch_size = batch_size
+        # self.batch_size = batch_size
         self.ip_size = ip_size
         self.op_size = op_size
 
@@ -19,15 +19,15 @@ class LSTMBranch(nn.Module):
     def forward(self, ip_matrix, use_gpu=True):
         ip_matrix = ip_matrix.permute(1, 0, 2)
         ip_matrix.requires_grad = False
-        h_0 = Variable(torch.zeros(1, self.batch_size, self.op_size))
-        c_0 = Variable(torch.zeros(1, self.batch_size, self.op_size))
+        # h_0 = Variable(torch.zeros(1, self.batch_size, self.op_size))
+        # c_0 = Variable(torch.zeros(1, self.batch_size, self.op_size))
 
-        # Move to GPU if CUDA is available
-        if torch.cuda.is_available() and use_gpu:
-            h_0 = h_0.cuda()
-            c_0 = c_0.cuda()
+        # # Move to GPU if CUDA is available
+        # if torch.cuda.is_available() and use_gpu:
+        #     h_0 = h_0.cuda()
+        #     c_0 = c_0.cuda()
 
-        op, _ = self.lstm(ip_matrix, (h_0, c_0))
+        op, _ = self.lstm(ip_matrix)
         x1 = op.permute(1, 0, 2)
         x = x1.contiguous()
 

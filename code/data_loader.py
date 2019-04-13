@@ -151,11 +151,9 @@ class CoCoDataset(data.Dataset):
                                            self.vocab_glove["<unk>"] for word in caption])
             # For each word in caption, return its glove-representation
             if self.fetch_mode == 'default':
-                print('not here bhosdike. kya kia tune')
                 # Return pre-processed image and caption tensors
                 return image, caption_gloves
             elif self.fetch_mode == 'retrieval':
-                print('in here')
                 return image, caption_gloves, caption
 
         # Obtain image if in test mode

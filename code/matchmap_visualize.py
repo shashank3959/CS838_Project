@@ -33,7 +33,7 @@ def caption_list_gen(caption):
 def get_data(batch_size, fetch_mode='retrieval'):
     data_loader_val = get_loader(transform=transform,
                                  mode='val',
-                                 batch_size=5,
+                                 batch_size=batch_size,
                                  vocab_from_file=True,
                                  fetch_mode='retrieval')
 
@@ -113,10 +113,12 @@ def gen_masks(image_model, caption_model, image_tensor,
     return color_img, bw_img, mask_list, target_caption
 
 
-def show_me(color_img, bw_img, mask_list, caption):
+def show_me(color_img, bw_img, mask_list, caption, name):
     plt.imshow(color_img)
     plt.title('Original Image')
     plt.show()
+    orig_name = name + 'original.png'
+    plt.savefig(orig_name)
 
     fig = plt.figure(figsize=(50, 200), facecolor='white')
 
@@ -129,5 +131,8 @@ def show_me(color_img, bw_img, mask_list, caption):
         plt.imshow(bw_img)
         plt.imshow(mask, cmap='jet', alpha=0.4)
         plt.title(caption[i - 1])
+        plt.axis('off')
 
     plt.show()
+    result_name = name + 'results.png'
+    plt.savefig(result_name)

@@ -11,6 +11,7 @@ from tqdm import tqdm
 import random
 import json
 
+
 def get_loader(transform,
                mode="train",
                batch_size=1,
@@ -22,7 +23,8 @@ def get_loader(transform,
                vocab_from_file=True,
                num_workers=4,
                cocoapi_loc=".",
-               vocab_glove_file="../data/vocab_glove.json"):
+               vocab_glove_file="../data/vocab_glove.json",
+               fetch_mode='default'):
     """Return the data loader.
     Parameters:
         transform: Image transform.
@@ -41,6 +43,7 @@ def get_loader(transform,
                      https://github.com/cocodataset/cocoapi
         vocab_glove_file: This JSON file contains the Glove embeddings for each
                     word in the vocabulary.
+        fetch_mode: Indicates mode of retrieving data
     """
     
     assert mode in ["train", "val", "test"], "mode must be one of 'train', 'val' or 'test'."
@@ -79,7 +82,8 @@ def get_loader(transform,
                           annotations_file=annotations_file,
                           vocab_from_file=vocab_from_file,
                           img_folder=img_folder,
-                          vocab_glove_file=vocab_glove_file)
+                          vocab_glove_file=vocab_glove_file,
+                          fetch_mode=fetch_mode)
 
     if mode == "train":
         # Randomly sample a caption length, and sample indices with that length.
@@ -103,7 +107,8 @@ def get_loader(transform,
 class CoCoDataset(data.Dataset):
     
     def __init__(self, transform, mode, batch_size, vocab_threshold, vocab_file, start_word, 
-        end_word, unk_word, annotations_file, vocab_from_file, img_folder, vocab_glove_file):
+        end_word, unk_word, annotations_file, vocab_from_file, img_folder, vocab_glove_file, fetch_mode='default'):
+        self.fetch_mode = fetch_mode
         self.transform = transform
         self.mode = mode
         self.batch_size = batch_size
@@ -142,13 +147,16 @@ class CoCoDataset(data.Dataset):
             caption.append(self.vocab.start_word)
             caption.extend(tokens)
             caption.append(self.vocab.end_word)
-
-            # For each word in caption, return its glove-representation
             caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
-                                          self.vocab_glove["<unk>"] for word in caption])
-
-            # Return pre-processed image and caption tensors
-            return image, caption_gloves
+                                           self.vocab_glove["<unk>"] for word in caption])
+            # For each word in caption, return its glove-representation
+            if self.fetch_mode == 'default':
+                print('not here bhosdike. kya kia tune')
+                # Return pre-processed image and caption tensors
+                return image, caption_gloves
+            elif self.fetch_mode == 'retrieval':
+                print('in here')
+                return image, caption_gloves, caption
 
         # Obtain image if in test mode
         else:

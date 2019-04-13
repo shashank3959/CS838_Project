@@ -18,9 +18,9 @@ def train(data_loader_train, data_loader_val, image_model, caption_model,
     start_time = time.time()
 
     loss_scores = list()
-
+    total_steps = 100
     # for i_step in range(start_step, total_train_step + 1):
-    for i_step in range(start_step, 101):
+    for i_step in range(start_step, total_steps+1):
         image_model.train()
         caption_model.train()
 
@@ -60,7 +60,7 @@ def train(data_loader_train, data_loader_val, image_model, caption_model,
         optimizer.step()
 
         losses.update(loss.data[0], image_ip.size(0))
-        niter = epoch * i_step + i_step
+        niter = epoch * total_steps + i_step
         writer.add_scalar('data/training_loss', losses.val, niter)
 
         print("Step: %d, current loss: %0.4f, avg_loss: %0.4f" % (i_step, loss, total_loss / i_step))
@@ -93,7 +93,8 @@ def validate(caption_model, image_model, data_loader_val, epoch,
     C_r1 = []
     I_r1 = []
 
-    for i_step_val in range(1, 11):
+    total_val_steps = 10
+    for i_step_val in range(1, total_val_steps+1):
         indices = data_loader_val.dataset.get_indices()
         new_sampler = data.sampler.SubsetRandomSampler(indices=indices)
         data_loader_val.batch_sampler.sampler = new_sampler
@@ -136,7 +137,7 @@ def validate(caption_model, image_model, data_loader_val, epoch,
         print("Step: %d, current loss: %0.4f, avg_loss: %0.4f" % (i_step_val, loss, total_loss_val / i_step_val))
 
         val_losses.update(loss.data[0], image_ip_val.size(0))
-        niter = epoch * i_step_val + i_step_val
+        niter = epoch * total_val_steps + i_step_val
         writer.add_scalar('data/val_loss', val_losses.val, niter)
         writer.add_scalar('data/caption_R10', mean(C_r10), niter)
         writer.add_scalar('data/caption_R5', mean(C_r5), niter)

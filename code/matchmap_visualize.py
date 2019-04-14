@@ -114,13 +114,16 @@ def gen_masks(image_model, caption_model, image_tensor,
 
 
 def show_me(color_img, bw_img, mask_list, caption, name):
+    color_img = (color_img - np.amin(color_img)) / np.ptp(color_img)
+    # color_img = 255*(color_img - np.amin(color_img))/np.ptp(color_img).astype(int)
     plt.imshow(color_img)
     plt.title('Original Image')
+    plt.axis('off')
     plt.show()
     orig_name = name + 'original.png'
-    plt.savefig(orig_name)
+    plt.imsave(orig_name, color_img)
 
-    fig = plt.figure(figsize=(50, 200), facecolor='white')
+    fig = plt.figure(figsize=(50, 20), facecolor='white')
 
     columns = len(mask_list) + 1
     rows = 1
@@ -130,9 +133,9 @@ def show_me(color_img, bw_img, mask_list, caption, name):
         fig.add_subplot(rows, columns, i)
         plt.imshow(bw_img)
         plt.imshow(mask, cmap='jet', alpha=0.4)
-        plt.title(caption[i - 1])
+        plt.title(caption[i - 1], fontdict={'fontsize': 20})
         plt.axis('off')
 
     plt.show()
     result_name = name + 'results.png'
-    plt.savefig(result_name)
+    fig.savefig(result_name)

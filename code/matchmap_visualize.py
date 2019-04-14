@@ -89,10 +89,8 @@ def tensor2img(tensor_image):
     return color_img, bw_img
 
 
-def gen_masks(image_model, caption_model, image_tensor,
-              caption_tensor, caption_list,
-              index = 0):
-    matchmap_list = gen_matchmap(image_model, caption_model, image_tensor, caption_tensor)
+def gen_masks(matchmap_list, image_tensor, caption_list, index = 0):
+    # matchmap_list = gen_matchmap(image_model, caption_model, image_tensor, caption_tensor)
     n_imgs = len(matchmap_list)
 
     assert n_imgs >= index
@@ -123,7 +121,7 @@ def show_me(color_img, bw_img, mask_list, caption, name):
     orig_name = name + 'original.png'
     plt.imsave(orig_name, color_img)
 
-    fig = plt.figure(figsize=(50, 20), facecolor='white')
+    fig = plt.figure(figsize=(30, 10), facecolor='white')
 
     columns = len(mask_list) + 1
     rows = 1
@@ -132,7 +130,7 @@ def show_me(color_img, bw_img, mask_list, caption, name):
         mask = cv2.resize(mask_list[i - 1], dsize=(224, 224))
         fig.add_subplot(rows, columns, i)
         plt.imshow(bw_img)
-        plt.imshow(mask, cmap='jet', alpha=0.4)
+        plt.imshow(mask, cmap='jet', alpha=0.6)
         plt.title(caption[i - 1], fontdict={'fontsize': 20})
         plt.axis('off')
 

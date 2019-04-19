@@ -107,7 +107,8 @@ def get_loader(transform,
 class CoCoDataset(data.Dataset):
     
     def __init__(self, transform, mode, batch_size, vocab_threshold, vocab_file, start_word, 
-        end_word, unk_word, annotations_file, vocab_from_file, img_folder, vocab_glove_file, fetch_mode='default'):
+        end_word, unk_word, annotations_file, vocab_from_file, img_folder, vocab_glove_file, fetch_mode='default',
+                 pad_caption=True, pad_limit=20):
         self.fetch_mode = fetch_mode
         self.transform = transform
         self.mode = mode
@@ -115,6 +116,8 @@ class CoCoDataset(data.Dataset):
         self.vocab = Vocabulary(vocab_threshold, vocab_file, start_word,
             end_word, unk_word, annotations_file, vocab_from_file)
         self.img_folder = img_folder
+        self.pad_caption = pad_caption
+        self.pad_limit = pad_limit
         if self.mode == "train" or self.mode == "val":
             self.coco = COCO(annotations_file)
             self.ids = list(self.coco.anns.keys())
@@ -147,6 +150,10 @@ class CoCoDataset(data.Dataset):
             caption.append(self.vocab.start_word)
             caption.extend(tokens)
             caption.append(self.vocab.end_word)
+
+            if self.pad_caption:
+                caption.extend([self.vocab.end_word] * (self.pad_limit - len(tokens)))
+
             caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
                                            self.vocab_glove["<unk>"] for word in caption])
             # For each word in caption, return its glove-representation
@@ -169,9 +176,14 @@ class CoCoDataset(data.Dataset):
             return orig_image, image
 
     def get_indices(self):
-        sel_length = np.random.choice(self.caption_lengths)
-        all_indices = np.where([self.caption_lengths[i] == \
-                               sel_length for i in np.arange(len(self.caption_lengths))])[0]
+        if self.pad_caption:
+            all_indices = np.where([self.caption_lengths[i] <= \
+                                    self.pad_limit for i in np.arange(len(self.caption_lengths))])[0]
+        else:
+            sel_length = np.random.choice(self.caption_lengths)
+            all_indices = np.where([self.caption_lengths[i] == \
+                                    sel_length for i in np.arange(len(self.caption_lengths))])[0]
+
         indices = list(np.random.choice(all_indices, size=self.batch_size))
         return indices
 

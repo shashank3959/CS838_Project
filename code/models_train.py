@@ -9,8 +9,8 @@ writer = SummaryWriter('../logs')
 
 
 def train(data_loader_train, data_loader_val, image_model, caption_model,
-          optimizer, epoch, score_type, sampler, margin, total_train_step,
-          batch_size, use_gpu=False, start_step=1, start_loss=0.0):
+          loss_type, optimizer, epoch, score_type, sampler, margin,
+          total_train_step, batch_size, use_gpu=False, start_step=1, start_loss=0.0):
     # Trains model for 1 Epoch
     losses = AverageMeter()
     total_loss = start_loss
@@ -50,9 +50,14 @@ def train(data_loader_train, data_loader_val, image_model, caption_model,
             score = score_function(image_output[sample], caption_glove_output[sample], score_type)
             sim_scores.append(score)
 
-        loss = custom_loss(image_output, caption_glove_output,
+        if loss_type == 'triplet':
+            loss = custom_loss(image_output, caption_glove_output,
                            score_type, margin, sampler)
-        loss_scores.append(loss)
+            loss_scores.append(loss)
+        elif loss_type == 'npairs':
+            loss = npairs_loss(image_output, caption_glove_output,
+                               score_type)
+            loss_scores.append(loss)
 
         optimizer.zero_grad()
         total_loss += loss
@@ -72,7 +77,7 @@ def train(data_loader_train, data_loader_val, image_model, caption_model,
 
 
 def validate(caption_model, image_model, data_loader_val, epoch,
-             score_type, sampler, margin, use_gpu):
+             loss_type, score_type, sampler, margin, use_gpu):
     val_losses = AverageMeter()
     total_loss_val = 0.0
 
@@ -112,9 +117,16 @@ def validate(caption_model, image_model, data_loader_val, epoch,
             image_output_val = image_model(image_ip_val)
             caption_output_val = caption_model(caption_glove_ip_val)
 
-            loss = custom_loss(image_output_val, caption_output_val,
-                               score_type, margin, sampler)
-            loss_scores.append(loss)
+            if loss_type == 'triplet':
+                loss = custom_loss(image_output_val, caption_output_val,
+                                   score_type, margin, sampler)
+                loss_scores.append(loss)
+
+            elif loss_type == 'npairs':
+                loss = npairs_loss(image_output_val, caption_output_val,
+                                   score_type)
+                loss_scores.append(loss)
+
             total_loss_val += loss
 
         I_embeddings = []

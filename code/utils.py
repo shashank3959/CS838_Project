@@ -103,6 +103,28 @@ def compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_typ
     return sim_mat
 
 
+def npairs_loss(image_outputs, caption_outputs, score_type='Avg_Both'):
+    assert (image_outputs.dim() == 4)
+    assert(caption_outputs.dim() == 3)
+
+    sim_mat = compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_type)
+    loss = torch.zeros(1, device=image_outputs.device, requires_grad=True)
+    n_imgs = image_outputs.size(0)
+
+
+    for i in range(n_imgs):
+        s_ii = torch.exp(sim_mat[i,i])
+        s_ij = torch.sum(torch.exp(sim_mat[:,i]))
+        s_ji = torch.sum(torch.exp(sim_mat[i,:]))
+
+        l = torch.log(torch.div(s_ij, s_ii)) + torch.log(torch.div(s_ji, s_ii))
+
+        loss = loss + l
+
+    loss = loss / n_imgs
+    return loss
+
+
 def custom_loss(image_outputs, caption_outputs, score_type='Avg_Both',
                 margin=0.1, sampler='hard'):
     assert (image_outputs.dim() == 4)

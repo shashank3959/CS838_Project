@@ -45,15 +45,15 @@ def get_loader(transform,
                     word in the vocabulary.
         fetch_mode: Indicates mode of retrieving data
     """
-    
+
     assert mode in ["train", "val", "test"], "mode must be one of 'train', 'val' or 'test'."
-    if vocab_from_file == False: 
+    if vocab_from_file == False:
         assert mode == "train", "To generate vocab from captions file, \
                must be in training mode (mode='train')."
 
     # Based on mode (train, val, test), obtain img_folder and annotations_file
     if mode == "train":
-        if vocab_from_file == True: 
+        if vocab_from_file == True:
             assert os.path.exists(vocab_file), "vocab_file does not exist.  \
                    Change vocab_from_file to False to create vocab_file."
         img_folder = os.path.join(cocoapi_loc, "../data/images/train2014/")
@@ -91,7 +91,7 @@ def get_loader(transform,
         # Create and assign a batch sampler to retrieve a batch with the sampled indices.
         initial_sampler = data.sampler.SubsetRandomSampler(indices=indices)
         # data loader for COCO dataset.
-        data_loader = data.DataLoader(dataset=dataset, 
+        data_loader = data.DataLoader(dataset=dataset,
                                       num_workers=num_workers,
                                       batch_sampler=data.sampler.BatchSampler(sampler=initial_sampler,
                                                                               batch_size=dataset.batch_size,
@@ -104,17 +104,19 @@ def get_loader(transform,
 
     return data_loader
 
+
 class CoCoDataset(data.Dataset):
-    
-    def __init__(self, transform, mode, batch_size, vocab_threshold, vocab_file, start_word, 
-        end_word, unk_word, annotations_file, vocab_from_file, img_folder, vocab_glove_file, fetch_mode='default',
+
+    def __init__(self, transform, mode, batch_size, vocab_threshold, vocab_file, start_word,
+                 end_word, unk_word, annotations_file, vocab_from_file, img_folder, vocab_glove_file,
+                 fetch_mode='default',
                  pad_caption=True, pad_limit=20):
         self.fetch_mode = fetch_mode
         self.transform = transform
         self.mode = mode
         self.batch_size = batch_size
         self.vocab = Vocabulary(vocab_threshold, vocab_file, start_word,
-            end_word, unk_word, annotations_file, vocab_from_file)
+                                end_word, unk_word, annotations_file, vocab_from_file)
         self.img_folder = img_folder
         self.pad_caption = pad_caption
         self.pad_limit = pad_limit
@@ -123,8 +125,8 @@ class CoCoDataset(data.Dataset):
             self.ids = list(self.coco.anns.keys())
             print("Obtaining caption lengths...")
             all_tokens = [nltk.tokenize.word_tokenize(
-                          str(self.coco.anns[self.ids[index]]["caption"]).lower())
-                            for index in tqdm(np.arange(len(self.ids)))]
+                str(self.coco.anns[self.ids[index]]["caption"]).lower())
+                for index in tqdm(np.arange(len(self.ids)))]
             self.caption_lengths = [len(token) for token in all_tokens]
         # If in test mode
         else:

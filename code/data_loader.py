@@ -270,7 +270,7 @@ class Flickr30kData(data.Dataset):
             # Return pre-processed image and caption tensors
             return image, caption_gloves
         elif self.fetch_mode == 'retrieval':
-            return image, caption_gloves, caption
+            return image, caption_gloves, target
 
     def __len__(self):
         # These are image ids

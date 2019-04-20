@@ -73,14 +73,12 @@ parser.add_argument('--resume', default='', type=str,
                     help='path to latest checkpoint of best model (default: none)')
 
 
-
 def main(args):
     # Parsing command line arguments
     print("Process %s, running on %s: starting (%s)" % (
         os.getpid(), os.name, time.asctime()))
 
-
-    if args.cnn_model =='vgg':
+    if args.cnn_model == 'vgg':
         image_model = VGG19(pretrained=True)
     else:
         image_model = ResNet50(pretrained = True)

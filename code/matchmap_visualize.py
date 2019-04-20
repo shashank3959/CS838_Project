@@ -19,8 +19,8 @@ transform = transforms.Compose([
                              (0.229, 0.224, 0.225))])
 
 
-
 def caption_list_gen(caption):
+    # Returns a list of captions
     caption_list = []
     for i in range(len(caption[0])):
         new_caption = []
@@ -31,6 +31,8 @@ def caption_list_gen(caption):
 
 
 def get_data(batch_size, fetch_mode='retrieval'):
+    # Returns tensors of image and caption glove embeddings to be fed to models
+    # Also returns textual captions for visualization
     data_loader_val = get_loader(transform=transform,
                                  mode='val',
                                  batch_size=batch_size,
@@ -51,6 +53,7 @@ def get_data(batch_size, fetch_mode='retrieval'):
 
 
 def load_model(model_path = 'model_best.pth.tar', map_location='cpu'):
+    # Load model based on model path provided
     image_model = VGG19(pretrained=True)
     checkpoint = torch.load(model_path, map_location)
     start_epoch = checkpoint['epoch']
@@ -59,6 +62,20 @@ def load_model(model_path = 'model_best.pth.tar', map_location='cpu'):
     caption_model.load_state_dict(checkpoint['caption_model'])
     print("Loaded checkpoint '{}' (epoch {})".format(model_path, checkpoint['epoch']))
     return image_model, caption_model
+
+
+def rgb2gray(rgb):
+    # Convert color numpy image to grayscale
+    return np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140])
+
+
+def tensor2img(tensor_image):
+    # Convert each tensor image to numpy image
+    img = tensor_image.permute(1,2,0)
+    color_img = img.numpy()
+    bw_img = rgb2gray(color_img)
+
+    return color_img, bw_img
 
 
 def gen_matchmap(image_model, caption_model, image_tensor, caption_tensor):
@@ -77,20 +94,8 @@ def gen_matchmap(image_model, caption_model, image_tensor, caption_tensor):
     return matchmap_list
 
 
-def rgb2gray(rgb):
-    return np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140])
-
-
-def tensor2img(tensor_image):
-    img = tensor_image.permute(1,2,0)
-    color_img = img.numpy()
-    bw_img = rgb2gray(color_img)
-
-    return color_img, bw_img
-
-
 def gen_masks(matchmap_list, image_tensor, caption_list, index = 0):
-    # matchmap_list = gen_matchmap(image_model, caption_model, image_tensor, caption_tensor)
+    # Creates a list of matchmaps for each image.
     n_imgs = len(matchmap_list)
 
     assert n_imgs >= index
@@ -111,7 +116,7 @@ def gen_masks(matchmap_list, image_tensor, caption_list, index = 0):
     return color_img, bw_img, mask_list, target_caption
 
 
-def show_me(color_img, bw_img, mask_list, caption, name):
+def gen_results(color_img, bw_img, mask_list, caption, name, save_flag = False):
     color_img = (color_img - np.amin(color_img)) / np.ptp(color_img)
     # color_img = 255*(color_img - np.amin(color_img))/np.ptp(color_img).astype(int)
     plt.imshow(color_img)
@@ -119,21 +124,25 @@ def show_me(color_img, bw_img, mask_list, caption, name):
     plt.axis('off')
     plt.show()
     orig_name = name + 'original.png'
-    plt.imsave(orig_name, color_img)
+    if save_flag:
+        plt.imsave(orig_name, color_img)
 
     fig = plt.figure(figsize=(30, 10), facecolor='white')
 
     columns = len(mask_list) + 1
     rows = 1
 
-    for i in range(1, len(mask_list) + 1):
-        mask = cv2.resize(mask_list[i - 1], dsize=(224, 224))
-        fig.add_subplot(rows, columns, i)
-        plt.imshow(bw_img)
-        plt.imshow(mask, cmap='jet', alpha=0.6)
-        plt.title(caption[i - 1], fontdict={'fontsize': 20})
-        plt.axis('off')
+    for id in range(len(mask_list)):
+        cap_word = caption[id]
+        mask = cv2.resize(mask_list[id], dsize=(224, 224))
+        if not cap_word in ['<start>', '<end>', ',', '.', '<unk>']:
+            fig.add_subplot(rows, columns, id+1)
+            plt.imshow(bw_img)
+            plt.imshow(mask, cmap='jet', alpha=0.5)
+            plt.title(cap_word, fontdict={'fontsize': 20})
+            plt.axis('off')
 
     plt.show()
     result_name = name + 'results.png'
-    fig.savefig(result_name)
+    if save_flag:
+        fig.savefig(result_name)

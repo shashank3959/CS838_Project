@@ -10,6 +10,7 @@ import numpy as np
 from tqdm import tqdm
 import random
 import json
+from collections import defaultdict
 
 
 def get_loader(transform,
@@ -194,3 +195,80 @@ class CoCoDataset(data.Dataset):
             return len(self.ids)
         else:
             return len(self.paths)
+
+
+class Flickr30kData(data.Dataset):
+    """`Flickr30k Entities <http://web.engr.illinois.edu/~bplumme2/Flickr30kEntities/>`_ Dataset.
+
+    Args:
+        img_root (string): Root directory where images are downloaded to.
+        ann_file (string): Path to annotation file.
+        transform (callable, optional): A function/transform that takes in a PIL image
+            and returns a transformed version. E.g, ``transforms.ToTensor``
+    """
+
+    def __init__(self, img_root, ann_file, transform,
+                 start_word='<start>',
+                 end_word='<end>',
+                 unk_word='<unk>',
+                 vocab_glove_file="../data/vocab_glove.json",
+                 fetch_mode="default"):
+        self.transform = transform
+        self.root = img_root
+        self.ann_file = os.path.expanduser(ann_file)
+        self.vocab_glove = json.load(open(vocab_glove_file, "r"))
+        self.start_word = start_word
+        self.end_word = end_word
+        self.unk_word = unk_word
+        self.fetch_mode = fetch_mode
+
+        # Read annotations and store in a dict
+        self.annotations = defaultdict(list)
+        with open(self.ann_file) as fh:
+            for line in fh:
+                img_id, caption = line.strip().split('\t')
+                self.annotations[img_id[:-2]].append(caption)
+
+        self.ids = list(sorted(self.annotations.keys()))
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index of the image
+
+        Returns:
+            tuple: Tuple (image, target). target is a list of captions for the image.
+        """
+        img_id = self.ids[index]
+
+        # Image
+        filename = os.path.join(self.root, img_id)
+        image = Image.open(filename).convert('RGB')
+        if self.transform is not None:
+            image = self.transform(image)
+
+        # Captions
+        target = self.annotations[img_id]
+
+        # Randomly sample one of the captions for this image
+        # :-2 removes the comma and space in the end
+        target = random.sample(target, 1)[0][:-2]
+        tokens = nltk.tokenize.word_tokenize(str(target).lower())
+        caption = list()
+        caption.append(self.start_word)
+        caption.extend(tokens)
+        caption.append(self.end_word)
+
+        caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
+                                       self.vocab_glove["<unk>"] for word in caption])
+
+        # For each word in caption, return its glove-representation
+        if self.fetch_mode == 'default':
+            # Return pre-processed image and caption tensors
+            return image, caption_gloves
+        elif self.fetch_mode == 'retrieval':
+            return image, caption_gloves, caption
+
+    def __len__(self):
+        # These are image ids
+        return len(self.ids)

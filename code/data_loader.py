@@ -237,7 +237,10 @@ class Flickr30kData(data.Dataset):
             index (int): Index of the image
 
         Returns:
-            tuple: Tuple (image, target). target is a list of captions for the image.
+            tuple: Tuple (image, caption_glove).
+            Caption_glove are the glove representation of each word in a
+            tokenized caption which has been randomly samples from the
+            different captions associated with an image.
         """
         img_id = self.ids[index]
 

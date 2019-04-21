@@ -25,7 +25,11 @@ def get_loader(transform,
                num_workers=4,
                cocoapi_loc=".",
                vocab_glove_file="../data/vocab_glove.json",
-               fetch_mode='default'):
+               fetch_mode='default',
+               data_mode='default',
+               disp_mode='default',
+               test_size=1000,
+               pad_caption=True):
     """Return the data loader.
     Parameters:
         transform: Image transform.
@@ -84,7 +88,11 @@ def get_loader(transform,
                           vocab_from_file=vocab_from_file,
                           img_folder=img_folder,
                           vocab_glove_file=vocab_glove_file,
-                          fetch_mode=fetch_mode)
+                          fetch_mode=fetch_mode,
+                          data_mode=data_mode,
+                          disp_mode=disp_mode,
+                          test_size=1000,
+                          pad_caption=True)
 
     if mode == "train":
         # Randomly sample a caption length, and sample indices with that length.
@@ -111,7 +119,10 @@ class CoCoDataset(data.Dataset):
     def __init__(self, transform, mode, batch_size, vocab_threshold, vocab_file, start_word,
                  end_word, unk_word, annotations_file, vocab_from_file, img_folder, vocab_glove_file,
                  fetch_mode='default',
-                 pad_caption=True, pad_limit=20):
+                 pad_caption=True, pad_limit=20, data_mode='default',disp_mode='default',test_size=1000):
+        self.test_size=test_size
+        self.disp_mode=disp_mode
+        self.data_mode=data_mode
         self.fetch_mode = fetch_mode
         self.transform = transform
         self.mode = mode
@@ -121,7 +132,8 @@ class CoCoDataset(data.Dataset):
         self.img_folder = img_folder
         self.pad_caption = pad_caption
         self.pad_limit = pad_limit
-        if self.mode == "train" or self.mode == "val":
+        
+        if self.mode == "train" or self.mode == "val" and self.disp_mode=='default':
             self.coco = COCO(annotations_file)
             self.ids = list(self.coco.anns.keys())
             print("Obtaining caption lengths...")
@@ -129,15 +141,25 @@ class CoCoDataset(data.Dataset):
                 str(self.coco.anns[self.ids[index]]["caption"]).lower())
                 for index in tqdm(np.arange(len(self.ids)))]
             self.caption_lengths = [len(token) for token in all_tokens]
+            
+        elif self.mode == "val" and self.disp_mode=="imgcapretrieval":
+            self.coco = COCO(annotations_file)
+            self.ids = list(self.coco.anns.keys())
+            self.imgIds = self.coco.getImgIds()
+            rng = random.Random(9003)
+            self.imgIds1k = rng.sample(self.imgIds,self.test_size)
+            self.capIds5k=self.coco.getAnnIds(imgIds=self.imgIds1k)
+     
         # If in test mode
         else:
             test_info = json.loads(open(annotations_file).read())
             self.paths = [item["file_name"] for item in test_info["images"]]
         self.vocab_glove = json.load(open(vocab_glove_file, "r"))
+    
 
     def __getitem__(self, index):
         # Obtain image and caption if in training or validation mode
-        if self.mode == "train" or self.mode == "val":
+        if self.mode == "train" or self.mode == "val" and self.disp_mode == "default":
             ann_id = self.ids[index]
             caption = self.coco.anns[ann_id]["caption"]
             img_id = self.coco.anns[ann_id]["image_id"]
@@ -165,7 +187,44 @@ class CoCoDataset(data.Dataset):
                 return image, caption_gloves
             elif self.fetch_mode == 'retrieval':
                 return image, caption_gloves, caption
-
+                       
+        if self.mode == "val" and self.disp_mode=="imgcapretrieval" and self.data_mode=="imagecaption":
+            index=self.imgIds1k
+            img_random=random.sample(list(np.arange(len(index))),self.batch_size)[0]
+            path = self.coco.loadImgs(index)[img_random]["file_name"]
+            imageid = self.coco.loadImgs(index)[img_random]["id"]
+            ground_truth_annid=self.coco.getAnnIds(imgIds=imageid)
+            ground_truth_cap = self.coco.loadAnns(ground_truth_annid)
+            ground_truth_cap = [capt['caption'] for capt in ground_truth_cap]
+            image = Image.open(os.path.join(self.img_folder, path)).convert("RGB")
+            image = self.transform(image)
+            
+            all_captions_glove=[]
+            captions5k = self.coco.loadAnns(self.capIds5k)
+            captions5k = [capt['caption'] for capt in captions5k]
+            print("Obtaining lengths of all the test dataset captions..")
+            all_tokens = [nltk.tokenize.word_tokenize(
+                          str(sent).lower())
+                            for sent in captions5k]
+            caption=list()
+            all_captions_glove=[]
+            finalcaptions5k=[]
+            for sent in captions5k:
+                tokens = nltk.tokenize.word_tokenize(str(sent).lower())
+                if len(tokens)<=self.pad_limit:
+                    finalcaptions5k.append(sent)
+                    caption=list()
+                    caption.append(self.vocab.start_word)
+                    caption.extend(tokens)
+                    caption.append(self.vocab.end_word)
+                    if self.pad_caption:
+                        caption.extend([self.vocab.end_word] * (self.pad_limit - len(tokens)))
+                    caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
+                                                   self.vocab_glove["<unk>"] for word in caption])
+                    all_captions_glove.append(caption_gloves)
+            total_caption_gloves=torch.stack(all_captions_glove,dim=0)   
+            return image,ground_truth_cap,total_caption_gloves,finalcaptions5k
+               
         # Obtain image if in test mode
         else:
             path = self.paths[index]
@@ -189,6 +248,14 @@ class CoCoDataset(data.Dataset):
 
         indices = list(np.random.choice(all_indices, size=self.batch_size))
         return indices
+
+    def get_imgindices(self):
+        imgindices = self.imgIds1k
+        return imgindices
+    
+    def get_capindices(self):
+        capindices = self.capIds5k
+        return capindices
 
     def __len__(self):
         if self.mode == "train" or self.mode == "val":

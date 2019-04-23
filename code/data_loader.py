@@ -133,7 +133,7 @@ class CoCoDataset(data.Dataset):
         self.pad_caption = pad_caption
         self.pad_limit = pad_limit
         
-        if self.mode == "train" or self.mode == "val" and self.disp_mode=='default':
+        if (self.mode == "train" or self.mode == "val") and self.disp_mode=='default':
             self.coco = COCO(annotations_file)
             self.ids = list(self.coco.anns.keys())
             print("Obtaining caption lengths...")

@@ -279,7 +279,9 @@ class Flickr30kData(data.Dataset):
                  end_word='<end>',
                  unk_word='<unk>',
                  vocab_glove_file="../data/vocab_glove.json",
-                 fetch_mode="default"):
+                 fetch_mode="default",
+                 pad_caption = True,
+                 pad_limit=20):
         self.transform = transform
         self.root = img_root
         self.ann_file = os.path.expanduser(ann_file)
@@ -288,13 +290,16 @@ class Flickr30kData(data.Dataset):
         self.end_word = end_word
         self.unk_word = unk_word
         self.fetch_mode = fetch_mode
+        self.pad_caption = True
+        self.pad_limit = pad_limit
 
         # Read annotations and store in a dict
         self.annotations = defaultdict(list)
-        with open(self.ann_file) as fh:
+        with open(self.ann_file, encoding = 'utf-8') as fh:
             for line in fh:
                 img_id, caption = line.strip().split('\t')
-                self.annotations[img_id[:-2]].append(caption)
+                if len(caption.split(" ")) <= self.pad_limit:
+                    self.annotations[img_id[:-2]].append(caption)
 
         self.ids = list(sorted(self.annotations.keys()))
 
@@ -322,12 +327,15 @@ class Flickr30kData(data.Dataset):
 
         # Randomly sample one of the captions for this image
         # :-2 removes the comma and space in the end
-        target = random.sample(target, 1)[0][:-2]
+        target = random.sample(target, 1)[0] # [:-2]
         tokens = nltk.tokenize.word_tokenize(str(target).lower())
         caption = list()
         caption.append(self.start_word)
         caption.extend(tokens)
         caption.append(self.end_word)
+
+        if self.pad_caption:
+            caption.extend([self.end_word] * (self.pad_limit - len(tokens)))
 
         caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
                                        self.vocab_glove["<unk>"] for word in caption])

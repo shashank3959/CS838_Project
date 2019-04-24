@@ -222,7 +222,7 @@ class CoCoDataset(data.Dataset):
                     caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
                                                    self.vocab_glove["<unk>"] for word in caption])
                     all_captions_glove.append(caption_gloves)
-            total_caption_gloves=torch.stack(all_captions_glove,dim=0)   
+            total_caption_gloves=torch.stack(all_captions_glove, dim=0)
             return image,ground_truth_cap,total_caption_gloves,finalcaptions5k
                
         # Obtain image if in test mode
@@ -322,11 +322,9 @@ class Flickr30kData(data.Dataset):
             for line in fh:
                 img_id, caption = line.strip().split('\t')
                 if (len(caption.split(" ")) <= self.pad_limit) and (img_id[:-2] in file_names):
-                    #print(self.annotations[img_id])
                     self.annotations[img_id[:-2]].append(caption)
 
         self.ids = list(sorted(self.annotations.keys()))
-        print(len(self.ids))
 
     def __getitem__(self, index):
         """
@@ -359,8 +357,11 @@ class Flickr30kData(data.Dataset):
         caption.extend(tokens)
         caption.append(self.end_word)
 
+
         if self.pad_caption:
             caption.extend([self.end_word] * (self.pad_limit - len(tokens)))
+
+        print(caption)
 
         caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
                                        self.vocab_glove["<unk>"] for word in caption])
@@ -370,7 +371,7 @@ class Flickr30kData(data.Dataset):
             # Return pre-processed image and caption tensors
             return image, caption_gloves
         elif self.fetch_mode == 'retrieval':
-            return image, caption_gloves, target
+            return image, caption_gloves, caption
 
     def __len__(self):
         # These are image ids

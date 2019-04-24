@@ -281,7 +281,11 @@ class Flickr30kData(data.Dataset):
                  vocab_glove_file="../data/vocab_glove.json",
                  fetch_mode="default",
                  pad_caption = True,
-                 pad_limit=20):
+                 pad_limit=20,
+                 test_fold="../data/test.txt",
+                 train_fold="../data/train.txt",
+                 val_fold="../data/val.txt",
+                 mode="test"):
         self.transform = transform
         self.root = img_root
         self.ann_file = os.path.expanduser(ann_file)
@@ -292,16 +296,37 @@ class Flickr30kData(data.Dataset):
         self.fetch_mode = fetch_mode
         self.pad_caption = True
         self.pad_limit = pad_limit
+        self.test_fold = test_fold
+        self.train_fold = train_fold
+        self.val_fold = val_fold
+        self.mode = mode
+
+        if self.mode=="test":
+            fold_file = self.test_fold
+        elif self.mode=="train":
+            fold_file=self.train_fold
+        else:
+            fold_file=self.val_fold
+
+        f = open(fold_file, encoding='utf-8', mode='r')
+        file_names = []
+
+        for file in f:
+            # removing last element which is \n
+            if file[-1] == "\n":
+                file_names.append(file[:-1] + '.jpg')
 
         # Read annotations and store in a dict
         self.annotations = defaultdict(list)
         with open(self.ann_file, encoding = 'utf-8') as fh:
             for line in fh:
                 img_id, caption = line.strip().split('\t')
-                if len(caption.split(" ")) <= self.pad_limit:
+                if (len(caption.split(" ")) <= self.pad_limit) and (img_id[:-2] in file_names):
+                    #print(self.annotations[img_id])
                     self.annotations[img_id[:-2]].append(caption)
 
         self.ids = list(sorted(self.annotations.keys()))
+        print(len(self.ids))
 
     def __getitem__(self, index):
         """

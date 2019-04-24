@@ -361,8 +361,6 @@ class Flickr30kData(data.Dataset):
         if self.pad_caption:
             caption.extend([self.end_word] * (self.pad_limit - len(tokens)))
 
-        print(caption)
-
         caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
                                        self.vocab_glove["<unk>"] for word in caption])
 

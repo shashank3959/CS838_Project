@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from utils import *
 from models import *
-from data_loader import get_loader
+from data_loader import *
 
 
 image_model = VGG19(pretrained=True)
@@ -30,26 +30,54 @@ def caption_list_gen(caption):
     return caption_list
 
 
-def get_data(batch_size, fetch_mode='retrieval'):
+def get_data(batch_size, fetch_mode='retrieval', dataset = 'mscoco'):
     # Returns tensors of image and caption glove embeddings to be fed to models
     # Also returns textual captions for visualization
-    data_loader_val = get_loader(transform=transform,
-                                 mode='val',
-                                 batch_size=batch_size,
-                                 vocab_from_file=True,
-                                 fetch_mode='retrieval')
+    if dataset == 'mscoco':
+        data_loader_val = get_loader(transform=transform,
+                                     mode='val',
+                                     batch_size=batch_size,
+                                     vocab_from_file=True,
+                                     fetch_mode='retrieval')
 
-    indices = data_loader_val.dataset.get_indices()
-    new_sampler = data.sampler.SubsetRandomSampler(indices=indices)
-    data_loader_val.batch_sampler.sampler = new_sampler
+        indices = data_loader_val.dataset.get_indices()
+        new_sampler = data.sampler.SubsetRandomSampler(indices=indices)
+        data_loader_val.batch_sampler.sampler = new_sampler
 
-    for batch in data_loader_val:
-        image_tensor, caption_glove_tensor, captions = batch[0], batch[1], batch[2]
-        break
+        for batch in data_loader_val:
+            image_tensor, caption_glove_tensor, captions = batch[0], batch[1], batch[2]
+            break
 
-    caption_list = caption_list_gen(captions)
+        caption_list = caption_list_gen(captions)
 
-    return image_tensor, caption_glove_tensor, caption_list
+        return image_tensor, caption_glove_tensor, caption_list
+
+    elif dataset == 'flickr30k':
+        img_path = '../data/flickr30k-images'
+        ann_path = '../data/results_20130124.token'
+
+        dataset = Flickr30kData(img_root=img_path,
+                                ann_file=ann_path,
+                                transform=transform,
+                                fetch_mode='retrieval',
+                                mode="test")
+
+        data_loader = data.DataLoader(dataset=dataset,
+                                      batch_size=batch_size,
+                                      shuffle=True)
+
+        dataloader_iterator = iter(data_loader)
+
+        for i in range(len(dataset)):
+            image_tensor, caption_glove_tensor, captions = next(dataloader_iterator)
+            break
+
+        caption_list = caption_list_gen(captions)
+
+        return image_tensor, caption_glove_tensor, caption_list
+
+    print("No Dataset chosen!!")
+    return
 
 
 def load_model(model_path = 'model_best.pth.tar', map_location='cpu'):
@@ -99,7 +127,6 @@ def gen_masks(matchmap_list, image_tensor, caption_list, index = 0):
     n_imgs = len(matchmap_list)
 
     assert n_imgs >= index
-
     target_image = image_tensor[index-1]
     target_caption = caption_list[index-1]
     target_matchmap = matchmap_list[index-1]
@@ -131,7 +158,6 @@ def gen_results(color_img, bw_img, mask_list, caption, name, save_flag = False):
 
     columns = len(mask_list) + 1
     rows = 1
-
     for id in range(len(mask_list)):
         cap_word = caption[id]
         mask = cv2.resize(mask_list[id], dsize=(224, 224))

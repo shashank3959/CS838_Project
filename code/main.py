@@ -75,8 +75,12 @@ parser.add_argument('--resume', default='', type=str,
 
 def main(args):
     # Parsing command line arguments
+    print("========================================================")
+
     print("Process %s, running on %s: starting (%s)" % (
         os.getpid(), os.name, time.asctime()))
+
+    print("========================================================")
 
     if args.cnn_model == 'vgg':
         image_model = VGG19(pretrained=True)
@@ -86,9 +90,13 @@ def main(args):
     caption_model = LSTMBranch()
 
     if torch.cuda.is_available() and args.use_gpu == True:
-        print("Loading models onto GPU to accelerate training")
         image_model = image_model.cuda()
         caption_model = caption_model.cuda()
+
+    # Get the learnable parameters
+    image_trainables = [p for p in image_model.parameters() if p.requires_grad]
+    caption_trainables = [p for p in caption_model.parameters() if p.requires_grad]
+    params = image_trainables + caption_trainables
 
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -110,11 +118,6 @@ def main(args):
     # Load saved model
     start_epoch, best_loss = load_checkpoint(image_model, caption_model, args.resume)
 
-    # Get the learnable parameters
-    image_trainables = [p for p in image_model.parameters() if p.requires_grad]
-    caption_trainables = [p for p in caption_model.parameters() if p.requires_grad]
-    params = image_trainables + caption_trainables
-
     # optimizer = torch.optim.Adam(params=params, lr=0.01)
     optimizer = torch.optim.SGD(params=params, lr=args.lr, momentum=0.9)
 
@@ -123,6 +126,7 @@ def main(args):
     # print("Total number of training steps are :", total_train_step)
 
     print("========================================================")
+    print("Number of epochs to train: ", args.n_epochs)
     print("Loss Type: ", args.loss_type)
     if args.loss_type == 'triplet':
         print("Sampling strategy: ", args.sampler)
@@ -134,8 +138,8 @@ def main(args):
     epoch = start_epoch
     best_epoch = start_epoch
 
-    while (epoch - best_epoch) < args.no_gain_stop and (epoch <= args.n_epochs):
-
+    # while (epoch - best_epoch) < args.no_gain_stop and (epoch <= args.n_epochs):
+    while epoch <= args.n_epochs :
         adjust_learning_rate(args.lr, args.lr_decay, optimizer, epoch)
         print("========================================================")
         print("Epoch: %d Training starting" % epoch)
@@ -161,7 +165,6 @@ def main(args):
             'image_model': image_model.state_dict(),
             'caption_model': caption_model.state_dict()
         }, val_loss < best_loss)
-        print("Saved Checkpoint!")
         if (val_loss) < best_loss:
             best_epoch = epoch
             best_loss = val_loss
@@ -209,8 +212,10 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
 
     filename = directory + filename
     torch.save(state, filename)
+    print("Saved Checkpoint!")
 
     if is_best:
+        print("Best Model found ! ")
         shutil.copyfile(filename, 'runs/%s/' % (args.name) + 'model_best.pth.tar')
 
 
@@ -219,7 +224,7 @@ def load_checkpoint(image_model, caption_model, resume_filename):
     if args.loss_type == 'triplet':
         best_loss = 2 * args.margin
     else:
-        best_loss = 1.0
+        best_loss = 0.5
 
     if resume_filename:
         if os.path.isfile(resume_filename):
@@ -229,7 +234,13 @@ def load_checkpoint(image_model, caption_model, resume_filename):
             best_loss = checkpoint['best_loss']
             image_model.load_state_dict(checkpoint['image_model'])
             caption_model.load_state_dict(checkpoint['caption_model'])
+
+            print("========================================================")
+
             print("Loaded checkpoint '{}' (epoch {})".format(resume_filename, checkpoint['epoch']))
+            print("Current Loss : ", checkpoint['best_loss'])
+
+            print("========================================================")
 
         else:
             print(" => No checkpoint found at '{}'".format(resume_filename))

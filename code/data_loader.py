@@ -12,7 +12,6 @@ import random
 import json
 from collections import defaultdict
 
-
 def get_loader(transform,
                mode="train",
                batch_size=1,
@@ -146,8 +145,8 @@ class CoCoDataset(data.Dataset):
             self.coco = COCO(annotations_file)
             self.ids = list(self.coco.anns.keys())
             self.imgIds = self.coco.getImgIds()
-            rng = random.Random(9003)
-            self.imgIds1k = rng.sample(self.imgIds,self.test_size)
+            rng = random.Random(5000)
+            self.imgIds1k = random.sample(self.imgIds,10)
             self.capIds5k=self.coco.getAnnIds(imgIds=self.imgIds1k)
      
         # If in test mode
@@ -190,40 +189,52 @@ class CoCoDataset(data.Dataset):
                        
         if self.mode == "val" and self.disp_mode=="imgcapretrieval" and self.data_mode=="imagecaption":
             index=self.imgIds1k
-            img_random=random.sample(list(np.arange(len(index))),self.batch_size)[0]
-            path = self.coco.loadImgs(index)[img_random]["file_name"]
-            imageid = self.coco.loadImgs(index)[img_random]["id"]
-            ground_truth_annid=self.coco.getAnnIds(imgIds=imageid)
-            ground_truth_cap = self.coco.loadAnns(ground_truth_annid)
-            ground_truth_cap = [capt['caption'] for capt in ground_truth_cap]
-            image = Image.open(os.path.join(self.img_folder, path)).convert("RGB")
-            image = self.transform(image)
-            
-            all_captions_glove=[]
-            captions5k = self.coco.loadAnns(self.capIds5k)
-            captions5k = [capt['caption'] for capt in captions5k]
-            print("Obtaining lengths of all the test dataset captions..")
-            all_tokens = [nltk.tokenize.word_tokenize(
-                          str(sent).lower())
-                            for sent in captions5k]
+            img_random=random.sample(list(np.arange(len(index))),10)
+            allimages=[]
+            allgtcaptions=[]
             caption=list()
             all_captions_glove=[]
             finalcaptions5k=[]
-            for sent in captions5k:
-                tokens = nltk.tokenize.word_tokenize(str(sent).lower())
-                if len(tokens)<=self.pad_limit:
-                    finalcaptions5k.append(sent)
-                    caption=list()
-                    caption.append(self.vocab.start_word)
-                    caption.extend(tokens)
-                    caption.append(self.vocab.end_word)
-                    if self.pad_caption:
-                        caption.extend([self.vocab.end_word] * (self.pad_limit - len(tokens)))
-                    caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
-                                                   self.vocab_glove["<unk>"] for word in caption])
-                    all_captions_glove.append(caption_gloves)
+            img_cap_dict = defaultdict(list)
+            img_cap_len_dict={}
+            img_imgid_dict={}
+            count_img=0
+            
+            for  i in img_random:
+                img_imgid=(index)[i]
+                path = self.coco.loadImgs(index)[i]["file_name"]
+                image = Image.open(os.path.join(self.img_folder, path)).convert("RGB")
+                image = self.transform(image)
+                allimages.append(image)
+                
+                imageid = self.coco.loadImgs(index)[i]["id"]
+                
+                cur_capid=self.coco.getAnnIds(imgIds=imageid)
+                cur_cap=self.coco.loadAnns(cur_capid)
+                cur_cap=[capt['caption'] for capt in cur_cap]
+                allgtcaptions.append(cur_cap)
+                
+                for eachcap in cur_cap:
+                    tokens = nltk.tokenize.word_tokenize(str(eachcap).lower())
+                    if len(tokens)<=self.pad_limit:
+                        img_cap_dict[imageid].append(eachcap)
+                        finalcaptions5k.append(eachcap)
+                        caption=list()
+                        caption.append(self.vocab.start_word)
+                        caption.extend(tokens)
+                        caption.append(self.vocab.end_word)
+                        if self.pad_caption:
+                            caption.extend([self.vocab.end_word] * (self.pad_limit - len(tokens)))
+                        caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
+                                                       self.vocab_glove["<unk>"] for word in caption])
+                        all_captions_glove.append(caption_gloves)
+                            
+                img_cap_len_dict[count_img] = len(img_cap_dict[imageid])
+                count_img=count_img+1
             total_caption_gloves=torch.stack(all_captions_glove, dim=0)
-            return image,ground_truth_cap,total_caption_gloves,finalcaptions5k
+            allimagestensor=torch.stack(allimages,dim=0)
+            return allimagestensor,allgtcaptions,total_caption_gloves,finalcaptions5k,img_cap_dict,img_cap_len_dict,img_imgid_dict
+            
                
         # Obtain image if in test mode
         else:
@@ -285,7 +296,9 @@ class Flickr30kData(data.Dataset):
                  test_fold="../data/test.txt",
                  train_fold="../data/train.txt",
                  val_fold="../data/val.txt",
-                 mode="test"):
+                 mode="test",
+                 disp_mode="default",
+                 num_test=1):
         self.transform = transform
         self.root = img_root
         self.ann_file = os.path.expanduser(ann_file)
@@ -300,6 +313,8 @@ class Flickr30kData(data.Dataset):
         self.train_fold = train_fold
         self.val_fold = val_fold
         self.mode = mode
+        self.disp_mode=disp_mode
+        self.num_test=num_test
 
         if self.mode=="test":
             fold_file = self.test_fold
@@ -325,6 +340,25 @@ class Flickr30kData(data.Dataset):
                     self.annotations[img_id[:-2]].append(caption)
 
         self.ids = list(sorted(self.annotations.keys()))
+                    
+        if self.disp_mode=="imgcapretrieval":
+            self.justcaptions21k=[]
+            with open(self.ann_file, encoding = 'utf-8') as fh:
+                for line in fh:
+                    img_id, caption = line.strip().split('\t')
+                    if (len(caption.split(" ")) <= self.pad_limit) and (img_id[:-2] in file_names):
+                        self.justcaptions21k.append(caption)
+
+        if self.disp_mode=="allretrieval":
+            self.annotationsall = defaultdict(list)
+            self.justcaptions21k=[]
+            with open(self.ann_file, encoding = 'utf-8') as fh:
+                for line in fh:
+                    img_id, caption = line.strip().split('\t')
+                    if (len(caption.split(" ")) <= self.pad_limit) and (img_id[:-2] in file_names):
+                        self.justcaptions21k.append(caption)
+                    if (len(caption.split(" ")) <= self.pad_limit) and (img_id[:-2] in file_names):
+                        self.annotationsall[img_id[:-2]].append(caption)
 
     def __getitem__(self, index):
         """
@@ -337,39 +371,106 @@ class Flickr30kData(data.Dataset):
             tokenized caption which has been randomly samples from the
             different captions associated with an image.
         """
-        img_id = self.ids[index]
+        
+        # Captions       
+        if self.disp_mode=="allretrieval":
+            allimages=[]
+            allgtcaptions=[]
+            allimageids=[]
+            img_id = self.ids
+            #for eachimgid in self.ids:
+            for i in range(0,25):
+                eachimgid=self.ids[i]
+                allimageids.append(eachimgid)
+                filename = os.path.join(self.root, eachimgid)
+                image = Image.open(filename).convert('RGB')
+                if self.transform is not None:
+                    image = self.transform(image)
+                target = self.annotations[eachimgid]
+                gtcaption=[capt for capt in target]
+                allimages.append(image)
+                allgtcaptions.append(gtcaption)
+            allimagestensor=torch.stack(allimages,dim=0)
+            
+            finalcaptions21k=[]
+            all_captions_glove=[]
+            for sent in self.justcaptions21k:
+                tokens = nltk.tokenize.word_tokenize(str(sent).lower())
+                if len(tokens)<=self.pad_limit:
+                    finalcaptions21k.append(sent)
+                    caption=list()
+                    caption.append(self.start_word)
+                    caption.extend(tokens)
+                    caption.append(self.end_word)
+                    if self.pad_caption:
+                        caption.extend([self.end_word] * (self.pad_limit - len(tokens)))
+                    caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
+                                                   self.vocab_glove["<unk>"] for word in caption])
+                    all_captions_glove.append(caption_gloves)
+            total_caption_gloves=torch.stack(all_captions_glove, dim=0)
+            
+        if self.disp_mode=="imgcapretrieval":
+            img_id = self.ids[index]
+            filename = os.path.join(self.root, img_id)
+            image = Image.open(filename).convert('RGB')
+            if self.transform is not None:
+                image = self.transform(image)
+            target = self.annotations[img_id]
+            gtcaption=[capt for capt in target]
+            
+            finalcaptions21k=[]
+            all_captions_glove=[]
+            for sent in self.justcaptions21k:
+                tokens = nltk.tokenize.word_tokenize(str(sent).lower())
+                if len(tokens)<=self.pad_limit:
+                    finalcaptions21k.append(sent)
+                    caption=list()
+                    caption.append(self.start_word)
+                    caption.extend(tokens)
+                    caption.append(self.end_word)
+                    if self.pad_caption:
+                        caption.extend([self.end_word] * (self.pad_limit - len(tokens)))
+                    caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
+                                                   self.vocab_glove["<unk>"] for word in caption])
+                    all_captions_glove.append(caption_gloves)
+            total_caption_gloves=torch.stack(all_captions_glove, dim=0)
+                                
+        elif self.disp_mode=="default":
+            img_id = self.ids[index]
+            filename = os.path.join(self.root, img_id)
+            image = Image.open(filename).convert('RGB')
+            if self.transform is not None:
+                image = self.transform(image)
+            target = self.annotations[img_id]
+            gtcaption=[capt for capt in target]
+            
+            target = self.annotations[img_id]
+            # Randomly sample one of the captions for this image
+            # :-2 removes the comma and space in the end
+            target = random.sample(target, 1)[0] # [:-2]
+            tokens = nltk.tokenize.word_tokenize(str(target).lower())
+            caption = list()
+            caption.append(self.start_word)
+            caption.extend(tokens)
+            caption.append(self.end_word)
+            if self.pad_caption:
+                caption.extend([self.end_word] * (self.pad_limit - len(tokens)))
 
-        # Image
-        filename = os.path.join(self.root, img_id)
-        image = Image.open(filename).convert('RGB')
-        if self.transform is not None:
-            image = self.transform(image)
-
-        # Captions
-        target = self.annotations[img_id]
-
-        # Randomly sample one of the captions for this image
-        # :-2 removes the comma and space in the end
-        target = random.sample(target, 1)[0] # [:-2]
-        tokens = nltk.tokenize.word_tokenize(str(target).lower())
-        caption = list()
-        caption.append(self.start_word)
-        caption.extend(tokens)
-        caption.append(self.end_word)
-
-
-        if self.pad_caption:
-            caption.extend([self.end_word] * (self.pad_limit - len(tokens)))
-
-        caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
-                                       self.vocab_glove["<unk>"] for word in caption])
+            caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
+                                           self.vocab_glove["<unk>"] for word in caption])
 
         # For each word in caption, return its glove-representation
-        if self.fetch_mode == 'default':
-            # Return pre-processed image and caption tensors
+        if self.fetch_mode == 'default' and self.disp_mode=="default":
             return image, caption_gloves
-        elif self.fetch_mode == 'retrieval':
+    # Return pre-processed image and caption tensors            
+        elif self.fetch_mode == 'retrieval' and self.disp_mode=="default":
             return image, caption_gloves, caption
+    
+        elif self.fetch_mode=="default" and self.disp_mode=='imgcapretrieval':
+            return image, total_caption_gloves, finalcaptions21k, gtcaption
+        elif self.fetch_mode=="default" and self.disp_mode=='allretrieval':
+            return allimagestensor, total_caption_gloves, finalcaptions21k, allgtcaptions, allimageids, self.annotationsall
+            
 
     def __len__(self):
         # These are image ids

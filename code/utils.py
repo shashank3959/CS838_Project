@@ -92,12 +92,13 @@ def compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_typ
     """
     assert(image_outputs.dim() == 4)
     assert(caption_outputs.dim() == 3)
-    batch_size = image_outputs.size(0)
+    batch_size_img = image_outputs.size(0)
+    batch_size_cap= caption_outputs.size(0)
+        
+    sim_mat = torch.zeros(batch_size_img, batch_size_cap, device=image_outputs.device)
 
-    sim_mat = torch.zeros(batch_size, batch_size, device=image_outputs.device)
-
-    for image_idx in range(batch_size):
-        for word_idx in range(batch_size):
+    for image_idx in range(batch_size_img):
+        for word_idx in range(batch_size_cap):
             sim_mat[image_idx, word_idx] = score_function(image_outputs[image_idx], caption_outputs[word_idx], score_type)
 
     return sim_mat
@@ -252,6 +253,77 @@ def calc_recalls(image_outputs, caption_outputs, score_type):
         else:
             I_r10.update(0)
 
+    # Create a dictionary of recall scores
+    recalls = {'C_r1': C_r1.avg, 'C_r5': C_r5.avg, 'C_r10': C_r10.avg,
+               'I_r1': C_r1.avg, 'I_r5': I_r5.avg, 'I_r10': I_r10.avg}
+
+    return recalls
+
+# Takes in an image caption correspondence dictionary
+def calc_recalls_uneven(image_outputs, caption_outputs, score_type, img_cap_corr, cap_img_corr):
+    sim_mat = compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_type)
+    batch_size_img = sim_mat.size(0)
+    batch_size_cap = sim_mat.size(1)
+    
+    # torch.topk() returns the k largest elements of a given input tensor along a given dimension
+    # C2I: Finding the best k images for each caption
+    C2I_scores, C2I_ind = sim_mat.topk(10, 0)
+
+    # I2C: Finding the best k captions for each image
+    I2C_scores, I2C_ind = sim_mat.topk(10, 1)
+    
+    # C_rk : Caption recall at k, and  I_rk : Image recall at k
+    C_r1 = AverageMeter()
+    C_r5 = AverageMeter()
+    C_r10 = AverageMeter()
+    I_r1 = AverageMeter()
+    I_r5 = AverageMeter()
+    I_r10 = AverageMeter()
+    
+    # For caption recalls
+    for i in range(batch_size_img):
+        ground_truth = img_cap_corr[i]
+       
+
+        # Recall at 10
+        pred_10 = I2C_ind[i].tolist()
+        percent_correct = 1 - len(set(ground_truth) - set(pred_10)) / len(ground_truth)
+        #percent_correct = len(set(ground_truth) - set(pred_10))
+        C_r10.update(percent_correct)
+        
+        # Recall at 5
+        pred_5 = I2C_ind[i, :5].tolist()
+        percent_correct = 1 - len(set(ground_truth) - set(pred_5)) / len(ground_truth)
+        C_r5.update(percent_correct)
+        
+        # Recall at 1
+        pred_1 = I2C_ind[i, 0].item()
+        if pred_1 in ground_truth:
+            C_r1.update(1)  # Found in top 1
+        else:
+            C_r1.update(0)         
+        
+     # For image recalls
+    for i in range(batch_size_cap):
+            ground_truth = [cap_img_corr[i]]
+            
+            # Recall at 10
+            pred_10 = C2I_ind[:, i].tolist()
+            percent_correct = 1 - len(set(ground_truth) - set(pred_10)) / len(ground_truth)
+            I_r10.update(percent_correct)
+            
+            # Recall at 5
+            pred_5 = C2I_ind[:5, i].tolist()
+            percent_correct = 1 - len(set(ground_truth) - set(pred_5)) / len(ground_truth)
+            I_r5.update(percent_correct)
+            
+            # Recall at 1
+            pred_1 = C2I_ind[0, i].item()
+            if pred_1 == ground_truth[0]:
+                I_r1.update(1)  # Found in top 1
+            else:
+                I_r1.update(0)    
+    
     # Create a dictionary of recall scores
     recalls = {'C_r1': C_r1.avg, 'C_r5': C_r5.avg, 'C_r10': C_r10.avg,
                'I_r1': C_r1.avg, 'I_r5': I_r5.avg, 'I_r10': I_r10.avg}

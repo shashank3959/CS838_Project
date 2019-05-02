@@ -377,7 +377,15 @@ class Flickr30kData(data.Dataset):
             allimages=[]
             allgtcaptions=[]
             allimageids=[]
+            all_captions_glove=[]
+            img_cap_dict = defaultdict(list)
+            img_cap_len_dict={}
+            img_imgid_dict={}
+            finalcaptions5k=[]
+            count_img=0
+            
             img_id = self.ids
+            
             #for eachimgid in self.ids:
             for i in range(0,25):
                 eachimgid=self.ids[i]
@@ -387,54 +395,30 @@ class Flickr30kData(data.Dataset):
                 if self.transform is not None:
                     image = self.transform(image)
                 target = self.annotations[eachimgid]
-                gtcaption=[capt for capt in target]
+                cur_caption=[capt for capt in target]
                 allimages.append(image)
-                allgtcaptions.append(gtcaption)
-            allimagestensor=torch.stack(allimages,dim=0)
-            
-            finalcaptions21k=[]
-            all_captions_glove=[]
-            for sent in self.justcaptions21k:
-                tokens = nltk.tokenize.word_tokenize(str(sent).lower())
-                if len(tokens)<=self.pad_limit:
-                    finalcaptions21k.append(sent)
-                    caption=list()
-                    caption.append(self.start_word)
-                    caption.extend(tokens)
-                    caption.append(self.end_word)
-                    if self.pad_caption:
-                        caption.extend([self.end_word] * (self.pad_limit - len(tokens)))
-                    caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
-                                                   self.vocab_glove["<unk>"] for word in caption])
-                    all_captions_glove.append(caption_gloves)
-            total_caption_gloves=torch.stack(all_captions_glove, dim=0)
-            
-        if self.disp_mode=="imgcapretrieval":
-            img_id = self.ids[index]
-            filename = os.path.join(self.root, img_id)
-            image = Image.open(filename).convert('RGB')
-            if self.transform is not None:
-                image = self.transform(image)
-            target = self.annotations[img_id]
-            gtcaption=[capt for capt in target]
-            
-            finalcaptions21k=[]
-            all_captions_glove=[]
-            for sent in self.justcaptions21k:
-                tokens = nltk.tokenize.word_tokenize(str(sent).lower())
-                if len(tokens)<=self.pad_limit:
-                    finalcaptions21k.append(sent)
-                    caption=list()
-                    caption.append(self.start_word)
-                    caption.extend(tokens)
-                    caption.append(self.end_word)
-                    if self.pad_caption:
-                        caption.extend([self.end_word] * (self.pad_limit - len(tokens)))
-                    caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
-                                                   self.vocab_glove["<unk>"] for word in caption])
-                    all_captions_glove.append(caption_gloves)
-            total_caption_gloves=torch.stack(all_captions_glove, dim=0)
+                allgtcaptions.append(cur_caption)
                                 
+                for sent in cur_caption:
+                    tokens = nltk.tokenize.word_tokenize(str(sent).lower())
+                    if len(tokens)<=self.pad_limit:
+                        img_cap_dict[eachimgid].append(sent)
+                        finalcaptions5k.append(sent)
+                        caption=list()
+                        caption.append(self.start_word)
+                        caption.extend(tokens)
+                        caption.append(self.end_word)
+                        if self.pad_caption:
+                            caption.extend([self.end_word] * (self.pad_limit - len(tokens)))
+                        caption_gloves = torch.Tensor([self.vocab_glove[word] if word in self.vocab_glove.keys() else
+                                                       self.vocab_glove["<unk>"] for word in caption])
+                        all_captions_glove.append(caption_gloves)
+                        
+                img_cap_len_dict[count_img] = len(img_cap_dict[eachimgid])
+                count_img=count_img+1
+            allimagestensor=torch.stack(allimages,dim=0)
+            total_caption_gloves=torch.stack(all_captions_glove, dim=0)
+            
         elif self.disp_mode=="default":
             img_id = self.ids[index]
             filename = os.path.join(self.root, img_id)
@@ -465,11 +449,9 @@ class Flickr30kData(data.Dataset):
     # Return pre-processed image and caption tensors            
         elif self.fetch_mode == 'retrieval' and self.disp_mode=="default":
             return image, caption_gloves, caption
-    
-        elif self.fetch_mode=="default" and self.disp_mode=='imgcapretrieval':
-            return image, total_caption_gloves, finalcaptions21k, gtcaption
+        
         elif self.fetch_mode=="default" and self.disp_mode=='allretrieval':
-            return allimagestensor, total_caption_gloves, finalcaptions21k, allgtcaptions, allimageids, self.annotationsall
+            return allimagestensor, total_caption_gloves, finalcaptions5k, allgtcaptions,img_cap_dict,img_cap_len_dict
             
 
     def __len__(self):

@@ -287,14 +287,17 @@ def calc_recalls_uneven(image_outputs, caption_outputs, score_type, img_cap_corr
 
         # Recall at 10
         pred_10 = I2C_ind[i].tolist()
-        percent_correct = 1 - len(set(ground_truth) - set(pred_10)) / len(ground_truth)
-        #percent_correct = len(set(ground_truth) - set(pred_10))
-        C_r10.update(percent_correct)
-        
+        if len(set(ground_truth) - set(pred_10)) < len(ground_truth):
+            C_r10.update(1)
+        else:
+            C_r10.update(0)
+           
         # Recall at 5
         pred_5 = I2C_ind[i, :5].tolist()
-        percent_correct = 1 - len(set(ground_truth) - set(pred_5)) / len(ground_truth)
-        C_r5.update(percent_correct)
+        if len(set(ground_truth) - set(pred_5)) < len(ground_truth):
+            C_r5.update(1)
+        else:
+            C_r5.update(0)
         
         # Recall at 1
         pred_1 = I2C_ind[i, 0].item()
@@ -309,23 +312,110 @@ def calc_recalls_uneven(image_outputs, caption_outputs, score_type, img_cap_corr
             
             # Recall at 10
             pred_10 = C2I_ind[:, i].tolist()
-            percent_correct = 1 - len(set(ground_truth) - set(pred_10)) / len(ground_truth)
-            I_r10.update(percent_correct)
+            if len(set(ground_truth) - set(pred_10)) < len(ground_truth):
+                I_r10.update(1)
+            else:
+                I_r10.update(0)
             
             # Recall at 5
             pred_5 = C2I_ind[:5, i].tolist()
-            percent_correct = 1 - len(set(ground_truth) - set(pred_5)) / len(ground_truth)
-            I_r5.update(percent_correct)
+            if len(set(ground_truth) - set(pred_5)) < len(ground_truth):
+                I_r5.update(1)
+            else:
+                I_r5.update(0)
             
             # Recall at 1
             pred_1 = C2I_ind[0, i].item()
             if pred_1 == ground_truth[0]:
                 I_r1.update(1)  # Found in top 1
             else:
-                I_r1.update(0)    
+                I_r1.update(0)
     
     # Create a dictionary of recall scores
     recalls = {'C_r1': C_r1.avg, 'C_r5': C_r5.avg, 'C_r10': C_r10.avg,
-               'I_r1': C_r1.avg, 'I_r5': I_r5.avg, 'I_r10': I_r10.avg}
+               'I_r1': I_r1.avg, 'I_r5': I_r5.avg, 'I_r10': I_r10.avg}
 
     return recalls
+
+
+
+# Takes in an image caption correspondence dictionary
+def calc_recalls_uneven_seq(image_outputs, caption_outputs, score_type, img_cap_corr, cap_img_corr,type_recall):
+    sim_mat = compute_matchmap_similarity_matrix(image_outputs, caption_outputs, score_type)
+    batch_size_img = sim_mat.size(0)
+    batch_size_cap = sim_mat.size(1)
+    
+    if type_recall=='caption':
+    
+         # I2C: Finding the best k captions for each image
+        I2C_scores, I2C_ind = sim_mat.topk(10, 1)
+        # C_rk : Caption recall at k, and  I_rk : Image recall at k
+        C_r1 = AverageMeter()
+        C_r5 = AverageMeter()
+        C_r10 = AverageMeter()
+        # For caption recalls
+        for i in range(batch_size_img):
+            ground_truth = img_cap_corr
+       
+
+            # Recall at 10
+            pred_10 = I2C_ind[i].tolist()
+            if len(set(ground_truth) - set(pred_10)) < len(ground_truth):
+                C_r10.update(1)
+            else:
+                C_r10.update(0)
+           
+            # Recall at 5
+            pred_5 = I2C_ind[i, :5].tolist()
+            if len(set(ground_truth) - set(pred_5)) < len(ground_truth):
+                C_r5.update(1)
+            else:
+                C_r5.update(0)
+        
+            # Recall at 1
+            pred_1 = I2C_ind[i, 0].item()
+            if pred_1 in ground_truth:
+                C_r1.update(1)  # Found in top 1
+            else:
+                C_r1.update(0)
+        # Create a dictionary of recall scores
+        recalls = {'C_r1': C_r1.avg, 'C_r5': C_r5.avg, 'C_r10': C_r10.avg}
+
+        return recalls
+    
+    if type_recall=='image':
+        
+        # C2I: Finding the best k images for each caption
+        C2I_scores, C2I_ind = sim_mat.topk(10, 0)
+        I_r1 = AverageMeter()
+        I_r5 = AverageMeter()
+        I_r10 = AverageMeter()
+        for i in range(batch_size_cap):
+            ground_truth = [cap_img_corr]
+            
+             # Recall at 10
+            pred_10 = C2I_ind[:, i].tolist()
+            
+            if len(set(ground_truth) - set(pred_10)) < len(ground_truth):
+                I_r10.update(1)
+            else:
+                I_r10.update(0)
+            
+            # Recall at 5
+            pred_5 = C2I_ind[:5, i].tolist()
+            if len(set(ground_truth) - set(pred_5)) < len(ground_truth):
+                I_r5.update(1)
+            else:
+                I_r5.update(0)
+            
+            # Recall at 1
+            pred_1 = C2I_ind[0, i].item()
+            if pred_1 == ground_truth[0]:
+                I_r1.update(1)  # Found in top 1
+            else:
+                I_r1.update(0)
+    
+    # Create a dictionary of recall scores
+        recalls = {'I_r1': I_r1.avg, 'I_r5': I_r5.avg, 'I_r10': I_r10.avg}
+
+        return recalls

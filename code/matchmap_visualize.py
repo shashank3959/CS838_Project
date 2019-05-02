@@ -8,15 +8,14 @@ from utils import *
 from models import *
 from data_loader import *
 
-
 image_model = VGG19(pretrained=True)
 caption_model = LSTMBranch()
 
 transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.485, 0.456, 0.406),
-                             (0.229, 0.224, 0.225))])
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize((0.485, 0.456, 0.406),
+                         (0.229, 0.224, 0.225))])
 
 
 def caption_list_gen(caption):
@@ -30,7 +29,7 @@ def caption_list_gen(caption):
     return caption_list
 
 
-def get_data(batch_size, fetch_mode='retrieval', dataset = 'mscoco'):
+def get_data(batch_size, fetch_mode='retrieval', dataset='mscoco'):
     # Returns tensors of image and caption glove embeddings to be fed to models
     # Also returns textual captions for visualization
     if dataset == 'mscoco':
@@ -80,7 +79,7 @@ def get_data(batch_size, fetch_mode='retrieval', dataset = 'mscoco'):
     return
 
 
-def load_model(model_path = 'model_best.pth.tar', map_location='cpu'):
+def load_model(model_path='model_best.pth.tar', map_location='cpu'):
     # Load model based on model path provided
     image_model = VGG19(pretrained=True)
     checkpoint = torch.load(model_path, map_location)
@@ -94,12 +93,12 @@ def load_model(model_path = 'model_best.pth.tar', map_location='cpu'):
 
 def rgb2gray(rgb):
     # Convert color numpy image to grayscale
-    return np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140])
+    return np.dot(rgb[..., :3], [0.2989, 0.5870, 0.1140])
 
 
 def tensor2img(tensor_image):
     # Convert each tensor image to numpy image
-    img = tensor_image.permute(1,2,0)
+    img = tensor_image.permute(1, 2, 0)
     color_img = img.numpy()
     bw_img = rgb2gray(color_img)
 
@@ -122,14 +121,14 @@ def gen_matchmap(image_model, caption_model, image_tensor, caption_tensor):
     return matchmap_list
 
 
-def gen_masks(matchmap_list, image_tensor, caption_list, index = 0):
+def gen_masks(matchmap_list, image_tensor, caption_list, index=0):
     # Creates a list of matchmaps for each image.
     n_imgs = len(matchmap_list)
 
     assert n_imgs >= index
-    target_image = image_tensor[index-1]
-    target_caption = caption_list[index-1]
-    target_matchmap = matchmap_list[index-1]
+    target_image = image_tensor[index - 1]
+    target_caption = caption_list[index - 1]
+    target_matchmap = matchmap_list[index - 1]
 
     color_img, bw_img = tensor2img(target_image)
 
@@ -143,7 +142,7 @@ def gen_masks(matchmap_list, image_tensor, caption_list, index = 0):
     return color_img, bw_img, mask_list, target_caption
 
 
-def gen_results(color_img, bw_img, mask_list, caption, name, save_flag = False):
+def gen_results(color_img, bw_img, mask_list, caption, name, save_flag=False, viz_map="mask", threshold=0.25):
     color_img = (color_img - np.amin(color_img)) / np.ptp(color_img)
     # color_img = 255*(color_img - np.amin(color_img))/np.ptp(color_img).astype(int)
     plt.imshow(color_img)
@@ -154,21 +153,54 @@ def gen_results(color_img, bw_img, mask_list, caption, name, save_flag = False):
     if save_flag:
         plt.imsave(orig_name, color_img)
 
-    fig = plt.figure(figsize=(30, 10), facecolor='white')
+    fig = plt.figure(figsize=(50, 30), facecolor='white')
 
-    columns = len(mask_list) + 1
-    rows = 1
-    for id in range(len(mask_list)):
-        cap_word = caption[id]
-        mask = cv2.resize(mask_list[id], dsize=(224, 224))
-        if not cap_word in ['<start>', '<end>', ',', '.', '<unk>']:
-            fig.add_subplot(rows, columns, id+1)
-            plt.imshow(bw_img)
-            plt.imshow(mask, cmap='jet', alpha=0.5)
-            plt.title(cap_word, fontdict={'fontsize': 20})
-            plt.axis('off')
+    if viz_map == "mask":
+        columns = len(mask_list) + 1
+        rows = 1
+        for id in range(len(mask_list)):
+            cap_word = caption[id]
+            mask = cv2.resize(mask_list[id], dsize=(224, 224))
+            if not cap_word in ['<start>', '<end>', ',', '.', '<unk>']:
+                fig.add_subplot(rows, columns, id + 1)
+                plt.imshow(bw_img)
+                plt.imshow(mask, cmap='jet', alpha=0.5)
+                plt.title(cap_word, fontdict={'fontsize': 20})
+                plt.axis('off')
+
+        plt.show()
+        result_name = name + viz_map + 'results.png'
+        if save_flag:
+            fig.savefig(result_name)
+
+
+    elif viz_map == "seg":
+        columns = len(mask_list) + 1
+        rows = 1
+
+        for id in range(len(mask_list)):
+            cap_word = caption[id]
+            mask = cv2.resize(mask_list[id], dsize=(224, 224))
+            mask2 = np.where((mask < threshold * np.mean(mask)), 0, 1).astype('uint8')  # new
+
+            if not cap_word in ['<start>', '<end>', ',', '.', '<unk>']:
+                fig.add_subplot(rows, columns, id + 1)
+                img = color_img * mask2[:, :, np.newaxis]
+                plt.imshow(img)
+                plt.title(cap_word, fontdict={'fontsize': 20})
+                plt.axis('off')
+
+        plt.show()
+        result_name = name + viz_map + 'results.png'
+        if save_flag:
+            fig.savefig(result_name)
+
+    else:
+        print("Provide viz_map")
+
 
     plt.show()
-    result_name = name + 'results.png'
+
+    result_name = name + viz_map + 'results.png'
     if save_flag:
         fig.savefig(result_name)

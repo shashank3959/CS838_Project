@@ -289,7 +289,7 @@ class Flickr30kData(data.Dataset):
                  start_word='<start>',
                  end_word='<end>',
                  unk_word='<unk>',
-                 vocab_glove_file="../data/vocab_glove.json",
+                 vocab_glove_file="../data/vocab_glove_flickr.json",
                  fetch_mode="default",
                  pad_caption = True,
                  pad_limit=20,

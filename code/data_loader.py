@@ -289,7 +289,7 @@ class Flickr30kData(data.Dataset):
                  start_word='<start>',
                  end_word='<end>',
                  unk_word='<unk>',
-                 vocab_glove_file="../data/vocab_glove_flickr.json",
+                 vocab_glove_file="../data/vocab_glove.json",
                  fetch_mode="default",
                  pad_caption = True,
                  pad_limit=20,
@@ -340,6 +340,7 @@ class Flickr30kData(data.Dataset):
                     self.annotations[img_id[:-2]].append(caption)
 
         self.ids = list(sorted(self.annotations.keys()))
+        print ("LEN OF SELF IDS",len(self.ids))
                     
         if self.disp_mode=="imgcapretrieval":
             self.justcaptions21k=[]
@@ -387,7 +388,8 @@ class Flickr30kData(data.Dataset):
             img_id = self.ids
             
             #for eachimgid in self.ids:
-            for i in range(0,25):
+            #for i in range(len(self.ids)):
+            for i in range(0,50):
                 eachimgid=self.ids[i]
                 allimageids.append(eachimgid)
                 filename = os.path.join(self.root, eachimgid)
@@ -418,6 +420,7 @@ class Flickr30kData(data.Dataset):
                 count_img=count_img+1
             allimagestensor=torch.stack(allimages,dim=0)
             total_caption_gloves=torch.stack(all_captions_glove, dim=0)
+            print ("TOTAL CAPTION GLOVES",total_caption_gloves.shape)
             
         elif self.disp_mode=="default":
             img_id = self.ids[index]
